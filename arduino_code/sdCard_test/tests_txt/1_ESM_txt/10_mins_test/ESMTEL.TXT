@@ -1,0 +1,2 @@
+time,date,humidity,temperature,pressure,localAltitude,pitch,roll,yaw
+23:30:00,14/12/2022,50.10,19.90,779.92,-0.20,-0.25,-1.23,41.87

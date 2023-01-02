@@ -1,0 +1,1 @@
+time,date,humidity,temperature,pressure,localAltitude,pitch,roll,yaw
