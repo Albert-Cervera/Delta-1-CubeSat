@@ -3,7 +3,7 @@
 (As of January 2023...)
 
 As the first nano-satellite of the Delta-V Project, Delta-1 is a 2U CubeSat with COTS intruments and controllers.
-The CubeSat is based on the Arduino architecture and its main payload instruments measure atmosferic conditions and magnetic & inertial measurements, logging its data into an SD card. Delta-1 has an onboard RTC as mission clock which serves to many critical functions and that is synced via GPS with on-orbit satellites.
+The CubeSat is based on the Arduino architecture and its main payload instruments measure atmospheric conditions and magnetic & inertial measurements, logging its data into an SD card. Delta-1 has an onboard RTC as mission clock which serves to many critical functions and that is synced via GPS with on-orbit satellites.
 
 The onboard computers are composed of two Arduino Uno with the controller-peripheral architecture based on I2C which are identified as SAT_A and SAT_B respectively. 
 
