@@ -130,15 +130,23 @@ void loop() {
   and when is valid time to sync, then sync
   */
 
-  // it should trigger alone
-  // if (startSync) {
-  //   Serial.print(" sync");
-  //   syncGPSDateTime(); // check if SAT_B still fall asleep
-  // }
-  // delay(360000); // 1 hour to skip the valid time if it was already valid
 
-  syncGPSDateTime(); // it works here (but should work on command of SAT_A)
-  delay(540000);  // 9+ mins
+  if (startSync) {
+    Serial.print(" sync");
+    syncGPSDateTime();  // check if SAT_B still falls asleep
+
+    String timestamp = getTimestampTime();
+    Serial.print("\nTimestamp: ");
+    Serial.print(timestamp);
+    String timestampDate = getTimestampDate();
+    Serial.print(", " + timestampDate);
+
+    startSync = false;
+  }
+
+
+  // syncGPSDateTime(); // it works here (but should work on command of SAT_A)
+  // delay(540000);  // 9+ mins
 }
 
 String setTwoDigits(uint8_t val) {
@@ -239,8 +247,10 @@ void writeFile(int flag, String fileName) {
 
   if (flag == 1 || flag == 4) {  // save telemetry
     myFile = SD.open(fileName, FILE_WRITE);
+    Serial.print(" m1");
     if (myFile) {
       // Serial.print("\nWriting file ...");
+      Serial.print(" m2");
 
       // Similar to a CSV format
       myFile.print(time + ",");
@@ -361,9 +371,9 @@ void requestEvent() {
   TODO: receive command along with weather data
 */
 void receiveEvent() {
-  Serial.print("\nrcvd_ev ");
+  // Serial.print("\nrcvd_ev ");
   Wire.readBytes((byte *)&auxiliarDataLog, sizeof auxiliarDataLog);  // 30 bytes
-  Serial.print(auxiliarDataLog.header);
+  // Serial.print(auxiliarDataLog.header);
 
   if (auxiliarDataLog.header == 6) {  // Activate deep sleep OR sync RTC (ESM mode)
     /*
@@ -374,13 +384,10 @@ void receiveEvent() {
     NOTE: Maximum 9 mins of GPS signal acquisition
     */
     if (validTimeToSync()) {  // Sync with GPS and skip sleep
-      // startSync = true;
-      Serial.print(" \nsync");
-      // delay(10000); // delay is not working
-      // syncGPSDateTime(); // Note: maybe timing functions as while, and delay doesn't work here !!!
+      startSync = true;
       // deepSleep(); // delete me
     } else {
-      deepSleep(); // should be uncommented
+      deepSleep();  // should be uncommented
     }
   } else if (auxiliarDataLog.header == 7) {  //Activate deep sleep (SAFE mode)
     deepSleep();
@@ -536,27 +543,24 @@ void syncGPSDateTimASDe() {
 }
 */
 
+
 void syncGPSDateTime() {
   TinyGPSPlus gps;  // The TinyGPS++ object
-  Serial.print(" GPS");
+  // Serial.print(" GPS");
 
   // uint8_t day, month, hour, minute, second;
   // uint16_t year;  // cast data: (uint8_t *)data16
 
   int day, month, year, hour, minute, second;  // it works!
-  // String day, month, year, hour, minute, second; // it worked :D
 
   bool gpsDate, gpsTime = false;
-  unsigned long startTime = millis();  // <-- maybe can't use millis when rcvd_event
+  unsigned long startTime = millis();
   unsigned long endTime = startTime;
 
-
-  // Serial.print(" m1");
   // 9 mins = 540 secs
   while ((endTime - startTime) <= 540000) {
     if (ss.available() > 0) {  // while (ss.available() > 0) {  // with if, it actual uses the break
       if (gps.encode(ss.read())) {
-        // Serial.print(" m2");
 
         if (gps.date.isValid()) {
           day = gps.date.day();
@@ -576,33 +580,28 @@ void syncGPSDateTime() {
           gpsTime = false;
         }
 
-        // Serial.print(minute);
-        // Serial.print(":");
-        // Serial.print(second);
-
         if (gpsDate && gpsTime) {
 
-          Serial.print("\nTime: ");
-          Serial.print(hour);
-          Serial.print(":");
-          Serial.print(minute);
-          Serial.print(":");
-          Serial.print(second);
+          // Serial.print("\nTime: ");
+          // Serial.print(hour);
+          // Serial.print(":");
+          // Serial.print(minute);
+          // Serial.print(":");
+          // Serial.print(second);
 
-          Serial.print(" , Date: ");
-          Serial.print(day);
-          Serial.print("/");
-          Serial.print(month);
-          Serial.print("/");
-          Serial.print(year);
+          // Serial.print(" , Date: ");
+          // Serial.print(day);
+          // Serial.print("/");
+          // Serial.print(month);
+          // Serial.print("/");
+          // Serial.print(year);
 
-
-          if (day != 0 && month <= 12 && year == 2023) {
-            // Update RTC with GPS time            
-            // myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
-            //Serial.print("\nRTC updated");
+          if (day > 0 && day <=31 && month <= 12 && year == 2023) {
+            // Update RTC with GPS time
+            myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
+            Serial.print("\nRTC updated");
             Serial.print("\nBreak");
-            // break;  // leave the 9 mins loop
+            break;  // leave the 9 mins loop
           }
         }
       }  // end if gps
@@ -611,3 +610,5 @@ void syncGPSDateTime() {
     endTime = millis();
   }  // end while 9 mins
 }
+
+
