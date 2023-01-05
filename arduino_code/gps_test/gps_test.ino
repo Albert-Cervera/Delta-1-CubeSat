@@ -6,7 +6,7 @@
    4800-baud serial GPS device hooked up on pins 4(rx) and 3(tx).
 */
 static const int RXPin = 4, TXPin = 3;
-static const uint32_t GPSBaud = 9600;
+// static const uint32_t GPSBaud = 9600;
 
 // The TinyGPS++ object
 // TinyGPSPlus gps;
@@ -16,7 +16,8 @@ SoftwareSerial ss(RXPin, TXPin);
 
 void setup() {
   Serial.begin(9600);
-  ss.begin(GPSBaud);
+  // ss.begin(GPSBaud);
+  ss.begin(9600);
   Serial.print(F("Testing TinyGPS++ library v. "));
   Serial.println(TinyGPSPlus::libraryVersion());  
 }
@@ -93,6 +94,8 @@ void getGPSTime() {
   // 9 mins = 540 secs
   while ((endTime - startTime) <= 540000) {
     if ((ss.available() > 0) && gps.encode(ss.read())) {
+    //if ((ss.available() > 0)) {
+      // gps.encode(ss.read());
 
       if (gps.date.isValid()) {
         day = gps.date.day();
@@ -131,12 +134,12 @@ void getGPSTime() {
         Serial.print("/");
         Serial.print(year);
 
-        if(day != 0 && month != 0 && year != 2000) {
+        if(day != 0 && month <= 12 && year >= 2023) {
           Serial.print("\nBreak");
-          break; // leave the 9 mins loop
+          // break; // leave the 9 mins loop
         }         
       }
-    }
+    } // end if
     endTime = millis();
   }
 }

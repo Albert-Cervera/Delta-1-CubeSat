@@ -63,8 +63,8 @@ RH_ASK rf_driver(2000, A3, 9, 0);  // speed in bps, rxPin, txPin, pttPin <-- Sen
 #define BME_CS 10  // CSB
 
 //Variables
-int spacecraftMode = 4;  // Modes -> 0: Safe Mode, 1: ESM, 2: RTW, 3: RTI, 4: RTWI
-int lastMode = 4;
+int spacecraftMode = 1;  // Modes -> 0: Safe Mode, 1: ESM, 2: RTW, 3: RTI, 4: RTWI
+int lastMode = 1;
 float pressureGroundLevel;  // Current pressure when CubeSat started
 float pitch, roll, yaw;     // Inertial Measurement Unit variables
 
@@ -276,8 +276,8 @@ void loop() {
             telemetryData.yaw = yaw;
 
             // Send telemetryData via I2C to peripheral slave for data saving
-            sendDataI2C(4);
-            sendDataI2C(5);
+            sendDataI2C(4); // SUDO save telemetry data
+            sendDataI2C(5); // SUDO save system data
 
             // Transmitting 3 seconds
             unsigned long startTime = millis();
