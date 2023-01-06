@@ -8,6 +8,7 @@
 //
 //> @author
 //> Albert Aarón Cervera Uribe
+// e-mail: astra.delta.v@gmail.com
 //
 // DESCRIPTION:
 //> This script contains a testing version of Albert's NanoSat1.

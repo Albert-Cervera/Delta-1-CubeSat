@@ -4,15 +4,18 @@
 // NASA/GSFC, Software Integration & Visualization Office, Code 610.3
 //------------------------------------------------------------------------------
 //
-// MODULES: RTC, SD card adapter & controller (master) arduino via I2C.
+// MODULES: RTC, SD card adapter, GPS & controller (master) arduino via I2C.
 //
 //> @author
 //> Albert Aarón Cervera Uribe
+// e-mail: astra.delta.v@gmail.com
 //
 // DESCRIPTION:
 //> This script contains a testing version of the peripheral (slave)
 // device that receive data from a master device and stores data into
 // persistant storage with timestamps from RTC.
+// The RTC is synced via GPS 4 times a day at 6h00, 12h00, 18h00 and 00h00 UTC.
+// In UTC-6: 00h00, 6h00, 12h00, 18h00
 //
 // In particular this is the CubeSat peripheral device.
 //
@@ -38,6 +41,7 @@
 // 1) Program storage space should not pass 80% or it won't execute properly.
 // 2) Energy received into SAT_B's Vin from SAT_A's 5v may not be enough to
 //    power external loads (instruments).
+// 3) Program needs at least 67% of RAM to write all txt
 //
 // REVISION HISTORY:
 // 08 December 2022 - Initial Version
@@ -48,17 +52,16 @@
 //------------------------------------------------------------------------------
 
 #include <SD.h>
-#include <SPI.h>  // for sd card communication
+#include <SPI.h>  // for SD card communication
 #include <virtuabotixRTC.h>
 #include <Wire.h>
 #include "LowPower.h"
 #include <TinyGPS++.h>
 #include <SoftwareSerial.h>
 
-String date;
-String time;
 int lastSecondSavedTel, lastMinuteSavedTel;
 int lastSecondSavedSys, lastMinuteSavedSys;
+// String latitude, longitude, altitude;
 bool startSync = false;
 
 /*
@@ -91,7 +94,6 @@ struct missionClockStruct {
 } rtcData;
 
 // Inititialization of instruments
-// TinyGPSPlus gps;                // The TinyGPS++ object
 SoftwareSerial ss(4, 3);        // The serial connection to the GPS device: RXPin, TXPin
 virtuabotixRTC myRTC(6, 7, 8);  // Real Time Clock
 
@@ -100,15 +102,55 @@ void setup() {
 
   // Set the current date, and time (monday is day 1, sunday is 7)
   // NOTE: to sync, upload code when real time is about to change to 52 seconds
-  myRTC.setDS1302Time(50, 59, 11, 4, 29, 12, 2022);  // SS, MM, HH, DW, DD, MM, YYYY
+  // myRTC.setDS1302Time(50, 59, 11, 4, 29, 12, 2022);  // SS, MM, HH, DW, DD, MM, YYYY
   // myRTC.setDS1302Time(00, 10, 19, 6, 31, 12, 2022);  // SS, MM, HH, DW, DD, MM, YYYY
+
+  /* FOR GPS AND RTC TEST:
+    1) Set time 10h38
+    2) ESM mode should save data at 10h40, 10h50, 11h00
+    3) SAT_B will trigger GPS sync at 11h00
+    4) Time should be: around 1 am UTC and correct date
+    5) Then SAT_B will trigger GPS sync at 2h00, 3h00 UTC
+
+    // Logs
+    19:18:18.713 -> SD_OK
+    19:40:29.611 -> 01:18:19 <-- Bad sync
+    20:22:22.178 -> 02:22:22 <-- too long
+    21:00:12.186 -> 03:00:12 <-- ok
+    22:00:12.176 -> 04:00:12 <-- ok
+
+    // ESMSYS
+    time,date,mode,voltage,internalTemp
+    12:00:00,29/12/2022,1,3.70,21.00
+    12:00:00,29/12/2022,1,3.70,20.94
+    10:40:00,29/12/2022,1,3.70,21.06 <-- test begins
+    10:50:00,29/12/2022,1,3.70,20.94
+    11:00:00,29/12/2022,1,3.70,20.88 <-- last local RTC and then GPS sync
+    01:30:00,06/01/2023,1,3.70,20.69 <-- new GPS time
+    01:40:00,06/01/2023,1,3.70,20.38
+    01:50:00,06/01/2023,1,3.70,20.69
+    02:00:00,06/01/2023,1,3.70,20.31 <-- 40 mins til next record: it started syncing, took 22 mins, 2h30 should happened
+    02:40:00,06/01/2023,1,3.70,20.31
+    02:50:00,06/01/2023,1,3.70,20.31
+    03:00:00,06/01/2023,1,3.70,20.38 <-- perfect sync
+    03:10:00,06/01/2023,1,3.70,20.25
+    03:20:00,06/01/2023,1,3.70,20.13
+    03:30:00,06/01/2023,1,3.70,20.19
+    03:40:00,06/01/2023,1,3.70,20.06
+    03:50:00,06/01/2023,1,3.70,19.69
+    04:00:00,06/01/2023,1,3.70,19.75 <-- perfect sync
+    04:10:00,06/01/2023,1,3.70,20.00
+    04:20:00,06/01/2023,1,3.70,20.06
+
+  */
+  myRTC.setDS1302Time(00, 38, 10, 4, 29, 12, 2022);
 
   Wire.begin(8);                 // join i2c bus with address #8,you can define whatever address you want like '4'
   Wire.onRequest(requestEvent);  // register event
   Wire.onReceive(receiveEvent);  // register event (To receive commands)
 
   if (!SD.begin(10)) {
-    Serial.print("ERR_SD");  // reduce this message to bare minimum
+    Serial.print("ERR_SD");
     while (1)
       ;
   }
@@ -129,24 +171,17 @@ void loop() {
   'always running' (test if SAT_B still sleeps)
   and when is valid time to sync, then sync
   */
-
-
   if (startSync) {
-    Serial.print(" sync");
     syncGPSDateTime();  // check if SAT_B still falls asleep
+    startSync = false;
 
     String timestamp = getTimestampTime();
-    Serial.print("\nTimestamp: ");
-    Serial.print(timestamp);
-    String timestampDate = getTimestampDate();
-    Serial.print(", " + timestampDate);
+    Serial.print("\n" + timestamp);
+    // String timestampDate = getTimestampDate();
+    // Serial.print(", " + timestampDate);
 
-    startSync = false;
+    // getGPSData();
   }
-
-
-  // syncGPSDateTime(); // it works here (but should work on command of SAT_A)
-  // delay(540000);  // 9+ mins
 }
 
 String setTwoDigits(uint8_t val) {
@@ -159,13 +194,11 @@ String setTwoDigits(uint8_t val) {
 
 String getTimestampDate() {
   myRTC.updateTime();
-  // date = setTwoDigits(myRTC.dayofmonth) + "/" + setTwoDigits(myRTC.month) + "/" + String(myRTC.year);
   return setTwoDigits(myRTC.dayofmonth) + "/" + setTwoDigits(myRTC.month) + "/" + String(myRTC.year);
 }
 
 String getTimestampTime() {
   myRTC.updateTime();
-  // time = setTwoDigits(myRTC.hours) + ":" + setTwoDigits(myRTC.minutes) + ":" + setTwoDigits(myRTC.seconds);
   return setTwoDigits(myRTC.hours) + ":" + setTwoDigits(myRTC.minutes) + ":" + setTwoDigits(myRTC.seconds);
 }
 
@@ -195,7 +228,8 @@ bool validTimeToSave(int flag) {
 
 // Checks if is the correct time to initiate RTC-GPS synchronization
 bool validTimeToSync() {
-  if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) {
+  // if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) {
+  if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
     return true;
   } else {
     return false;
@@ -205,19 +239,14 @@ bool validTimeToSync() {
 // TODO: Add function that creates a new txt file when date.month changes.
 void writeToSD(int flag) {
   // Just one file can be open at a time, make sure to close it after writing.
-  // bool canWrite;
-
   switch (flag) {
     case 1:  // Save RTWI telemetry data: Checking validTime
-      //canWrite = validTimeToSave(1);
       if (validTimeToSave(1)) {
         writeFile(1, "2_RTWI/RTWITEL.txt");
       }
       break;
     case 2:  // Save RT system data: Checking validTime
-      // canWrite = validTimeToSave(2);
       if (validTimeToSave(2)) {
-        // Serial.print("\nSave system data\n");
         writeFile(2, "2_RTWI/RTSYS.txt");
       }
       break;
@@ -231,26 +260,18 @@ void writeToSD(int flag) {
       writeFile(5, "1_ESM/ESMSYS.txt");
       break;
   }
-
-  // delay(750);  // Complete for a full second in sending data to slave.
 }
 
 void writeFile(int flag, String fileName) {
   // 3-4-5 are SUDO! 1-2 need to check time
-  File myFile;  // File for data handling
-  time = getTimestampTime();
-  date = getTimestampDate();
-
-  // Serial.print("\n");
-  // Serial.print(time);
-  // Serial.print(" , " + date);
+  File myFile;
+  String time = getTimestampTime();
+  String date = getTimestampDate();
+  myFile = SD.open(fileName, FILE_WRITE);
 
   if (flag == 1 || flag == 4) {  // save telemetry
-    myFile = SD.open(fileName, FILE_WRITE);
-    Serial.print(" m1");
     if (myFile) {
-      // Serial.print("\nWriting file ...");
-      Serial.print(" m2");
+      // Serial.print(" m1");
 
       // Similar to a CSV format
       myFile.print(time + ",");
@@ -265,7 +286,6 @@ void writeFile(int flag, String fileName) {
       myFile.print("\n");
 
       myFile.close();
-      // Serial.println(" done.");
 
       if (flag == 1) {
         lastSecondSavedTel = myRTC.seconds;
@@ -277,9 +297,8 @@ void writeFile(int flag, String fileName) {
       Serial.print("\nERR txt 1-4");
     }
   } else if (flag == 2 || flag == 3 || flag == 5) {  //save system data
-    myFile = SD.open(fileName, FILE_WRITE);
     if (myFile) {
-      //Serial.print("Writing file ...");
+
       myFile.print(time + ",");
       myFile.print(date + ",");
       myFile.print(String(int(auxiliarDataLog.val1)) + ",");
@@ -288,7 +307,6 @@ void writeFile(int flag, String fileName) {
       myFile.print("\n");
 
       myFile.close();
-      // Serial.println("done.");
 
       if (flag == 2) {
         lastSecondSavedTel = myRTC.seconds;
@@ -300,56 +318,28 @@ void writeFile(int flag, String fileName) {
       Serial.print("\nERR txt 2-3-5");
     }
   }
-}
+  /*
+  else if (flag == 6) {  // Save GPS data
+    if (myFile) {
+      // Serial.print(" m2");
+      // Serial.print(time);
 
-/*
-void readSD(int flag) {
-  switch (flag) {
-    case 1:
-      // Read txt file
-      myFile = SD.open("deltaone.txt");
+      myFile.print(time + ",");
+      myFile.print(date + ",");
+      myFile.print(latitude + ",");
+      myFile.print(longitude + ",");
+      myFile.print(altitude);
+      myFile.print("\n");
 
-      if (myFile) {
-        Serial.println("weather2.txt:");
-        // read from the file until there's nothing else in it:
-        while (myFile.available()) {
-          Serial.write(myFile.read());
-        }
-        myFile.close();
-      } else {
-        Serial.println("[ !!! ] Error opening weather txt file");
-      }
+      myFile.close();
 
-      break;
-    case 2:
-      // Read other file
-      break;
+    } else {
+      // TODO: consider trying to initialize the sd card again
+      Serial.print("\nERR txt gps");
+    }
   }
+  */
 }
-*/
-
-/*
-void executeCommand(int command) {
-  switch (command) {
-    case 1:
-      // Save weather data to SD card
-
-      // TODO: weather data should come from master via I2C
-      // telemetryDataLog.humidity = 43.40,
-      // telemetryDataLog.temperature = 21.10;
-      // telemetryDataLog.pressure = 781.03;
-      // telemetryDataLog.localAltitude = 14.18;
-      // telemetryDataLog.timestamp = getTimestamp();
-
-      writeToSD(1);
-
-      break;
-    case 2:
-      // Save other data (IMU)
-      break;
-  }
-}
-*/
 
 /*
 function that executes whenever data is requested by master.
@@ -363,17 +353,12 @@ void requestEvent() {
   Wire.write((byte *)&rtcData, sizeof rtcData);
 }
 
-/*
-  receiveEvent()
+/* receiveEvent()
   function that executes whenever data is received from master
   this function is registered as an event, see setup().
-
-  TODO: receive command along with weather data
 */
 void receiveEvent() {
-  // Serial.print("\nrcvd_ev ");
   Wire.readBytes((byte *)&auxiliarDataLog, sizeof auxiliarDataLog);  // 30 bytes
-  // Serial.print(auxiliarDataLog.header);
 
   if (auxiliarDataLog.header == 6) {  // Activate deep sleep OR sync RTC (ESM mode)
     /*
@@ -385,14 +370,13 @@ void receiveEvent() {
     */
     if (validTimeToSync()) {  // Sync with GPS and skip sleep
       startSync = true;
-      // deepSleep(); // delete me
     } else {
-      deepSleep();  // should be uncommented
+      deepSleep();
     }
   } else if (auxiliarDataLog.header == 7) {  //Activate deep sleep (SAFE mode)
     deepSleep();
   } else if (auxiliarDataLog.header == 8) {  // TODO: Force an RTC update (from MCC command)
-    // sJJyncGPSDateTime();
+    startSync = true;
   } else {
     writeToSD(auxiliarDataLog.header);  // Write to txt file
   }
@@ -439,127 +423,19 @@ void deepSleep() {
 // Reset fuction at address 0
 // void (*resetFunc)(void) = 0;
 
-
-/*
-void syncGPSDateTimASDe() {
-  // I need to leave 512 bytes of RAM for SD card
-  // Serial.print("\nGPS");
-
-  TinyGPSasdPlus gps;  // The TinyGPS++ object
-
-  uint8_t day, month, hour, minute, second;
-  uint16_t year;  // cast data: (uint8_t *)data16
-  bool gpsDate, gpsTime = false;
-  unsigned long startTime = millis();
-  unsigned long endTime = startTime;
-
-  // 9 mins = 540 secs
-  while ((endTime - startTime) <= 540000) {
-    // if ((ss.available() > 0) && gps.encode(ss.read())) {
-    while ((ss.available() > 0)) {
-      while (gps.encode(ss.read())) {
-
-        if (gps.time.isValid()) {
-          hour = gps.time.hour();
-          minute = gps.time.minute();
-          second = gps.time.second();
-          gpsTime = true;
-          Serial.print("\n");
-          Serial.print(second);
-        }
-
-        if (gps.date.isValid()) {
-          day = gps.date.day();
-          month = gps.date.month();
-          year = gps.date.year();
-          gpsDate = true;
-        }
-
-        // hour = gps.time.hour();
-        // minute = gps.time.minute();
-        // second = gps.time.second();
-        // day = gps.date.day();
-        // month = gps.date.month();
-        // year = gps.date.year();
-
-        // Serial.print("\n:");
-        // Serial.print(second);
-
-        // int year = 2023;
-        // int second = 25;
-
-        if (year != 2000) {
-          // Serial.print("\n:");
-          // Serial.print(second);
-
-          Serial.print("\nTime: ");
-          Serial.print(hour);
-          Serial.print(":");
-          Serial.print(minute);
-          Serial.print(":");
-          Serial.print(second);
-
-          Serial.print(" , Date: ");
-          Serial.print(day);
-          Serial.print("/");
-          Serial.print(month);
-          Serial.print("/");
-          Serial.print(year);
-        }
-
-        // break;  // leave the 9 mins loop
-      }
-
-      // if (gpsDate && gpsTime) {
-
-      // Serial.print("\nTime: ");
-      // Serial.print(hour);
-      // Serial.print(":");
-      // Serial.print(minute);
-      // Serial.print("\n:");
-      // Serial.print(second);
-
-      // Serial.print(" , Date: ");
-      // Serial.print(day);
-      // Serial.print("/");
-      // Serial.print(month);
-      // Serial.print("/");
-      // Serial.print(year);
-
-
-      // if (year != 2000) {  // day != 0 && month != 0 && year != 2000
-      //   // Update RTC with GPS time
-      //   // uint8_t YYYY = (uint8_t *)year; // casting to uint8
-      //   // myRTC.setDS1302Time(second, minute, hour, 1, day, month, YYYY);  // SS, MM, HH, DW, DD, MM, YYYY
-      //   Serial.print("\nBk");
-      //   break;  // leave the 9 mins loop
-      // } // end if month != 0
-
-
-      //}  // end if gpsTime && gpsDate
-    }
-    endTime = millis();
-  }  // end while 9 mins
-}
-*/
-
-
+// Gets UTC time via GPS and syncs RTC
 void syncGPSDateTime() {
   TinyGPSPlus gps;  // The TinyGPS++ object
-  // Serial.print(" GPS");
 
-  // uint8_t day, month, hour, minute, second;
-  // uint16_t year;  // cast data: (uint8_t *)data16
-
-  int day, month, year, hour, minute, second;  // it works!
-
-  bool gpsDate, gpsTime = false;
+  int day, month, year, hour, minute, second;
+  // String latitude, longitude, altitude;
   unsigned long startTime = millis();
   unsigned long endTime = startTime;
+  bool gpsDate, gpsTime = false;
 
   // 9 mins = 540 secs
   while ((endTime - startTime) <= 540000) {
-    if (ss.available() > 0) {  // while (ss.available() > 0) {  // with if, it actual uses the break
+    if (ss.available() > 0) {
       if (gps.encode(ss.read())) {
 
         if (gps.date.isValid()) {
@@ -567,8 +443,6 @@ void syncGPSDateTime() {
           month = gps.date.month();
           year = gps.date.year();
           gpsDate = true;
-        } else {
-          gpsDate = false;
         }
 
         if (gps.time.isValid()) {
@@ -576,39 +450,67 @@ void syncGPSDateTime() {
           minute = gps.time.minute();
           second = gps.time.second();
           gpsTime = true;
-        } else {
-          gpsTime = false;
         }
+
+        // Serial.print("\nTime: ");
+        // Serial.print(hour);
+        // Serial.print(":");
+        // Serial.print(minute);
+        // Serial.print(":");
+        // Serial.print(second);
+
+        // Serial.print(" , Date: ");
+        // Serial.print(day);
+        // Serial.print("/");
+        // Serial.print(month);
+        // Serial.print("/");
+        // Serial.print(year);
 
         if (gpsDate && gpsTime) {
+          if (day > 0 && day <= 31 && month <= 12 && year == 2023) {
 
-          // Serial.print("\nTime: ");
-          // Serial.print(hour);
-          // Serial.print(":");
-          // Serial.print(minute);
-          // Serial.print(":");
-          // Serial.print(second);
-
-          // Serial.print(" , Date: ");
-          // Serial.print(day);
-          // Serial.print("/");
-          // Serial.print(month);
-          // Serial.print("/");
-          // Serial.print(year);
-
-          if (day > 0 && day <=31 && month <= 12 && year == 2023) {
-            // Update RTC with GPS time
+            // Update RTC with GPS UTC time
             myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
-            Serial.print("\nRTC updated");
-            Serial.print("\nBreak");
-            break;  // leave the 9 mins loop
+            break;
           }
         }
-      }  // end if gps
-    }    // end while gps
+
+
+
+      }  // end if gps.encode(ss.read())
+    }    // end if ss.available()
 
     endTime = millis();
   }  // end while 9 mins
 }
 
+/*
+// Gets latitude, longitude and altitude data from GPS
+void getGPSData() {
+  TinyGPSPlus gps;  // The TinyGPS++ object
+  
+  unsigned long startTime = millis();
+  unsigned long endTime = startTime;
+  // 5 mins = 300 sec
+  while ((endTime - startTime) <= 300000) {
+    if (ss.available() > 0) {
+      if (gps.encode(ss.read())) {
 
+        if (gps.location.isValid()) {
+          latitude = gps.location.lat();
+          longitude = gps.location.lng();
+          altitude = gps.altitude.meters();
+
+          if (gps.altitude.meters() != 0.0) {
+            writeFile(6, "GPSSYNC.txt");
+            break;
+          }
+        }
+
+      }
+    }
+
+    endTime = millis();
+  }
+}
+*/

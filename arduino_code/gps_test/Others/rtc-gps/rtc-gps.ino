@@ -39,6 +39,8 @@ void displayInfo() {
     Serial.print(gps.location.lat(), 6);
     Serial.print(F(","));
     Serial.print(gps.location.lng(), 6);
+    Serial.print(F(","));
+    Serial.print(gps.altitude.meters(), 6);
   } else {
     Serial.print(F("INVALID"));
   }
