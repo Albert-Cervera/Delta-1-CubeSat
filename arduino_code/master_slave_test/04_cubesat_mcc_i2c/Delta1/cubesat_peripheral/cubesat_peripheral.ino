@@ -220,10 +220,35 @@ void setup() {
     14:10:00,06/01/2023,1,3.70,19.25
     14:20:00,06/01/2023,1,3.70,19.31
 
+    -------------------------------------------------------------- Third test
+    Set the RTC with UTC time and wrong date and let GPS sync at the designated times.
+    1) Experiment starting time: 12h10 Jan 6, 2023 UTC-6 or 18h10 UTC 
+    2) It'll pass 5 hours 50 mins of ESM data recording before GPS sync that should be at 00h00 UTC (18h00 UTC-6)
+    3) I'll leave it running for 4 days (my poor Macbook's battery :c)
 
+    12:09:59.120 -> SD_OK    <-- Friday Jan 6 (local)
+    18:00:10.264 -> 00:00:10
+    00:00:11.206 -> 06:00:11 <-- Saturday Jan 7 (local)
+    06:00:11.178 -> 12:00:11
+    12:00:11.333 -> 18:00:11
+    18:00:11.234 -> 00:00:11
+    00:00:11.251 -> 06:00:11 <-- Sunday Jan 8 (local)
+    06:00:11.252 -> 12:00:11
+    12:00:11.337 -> 18:00:11
+    18:00:11.191 -> 00:00:11
+    00:00:11.202 -> 06:00:11 <-- Monday Jan 9 (local)
+    06:00:11.198 -> 12:00:11
+    12:00:11.408 -> 18:00:11
+    18:00:12.265 -> 00:00:12
+    00:00:11.243 -> 06:00:11 <-- Tuesday Jan 10 (local)
+    06:00:11.309 -> 12:00:11
+    12:00:11.238 -> 18:00:11
+    18:00:11.237 -> 00:00:11 
+    -- After this point, Satellite is disconnected from Mac and connected to power outlet
 
   */
-  myRTC.setDS1302Time(00, 38, 10, 4, 29, 12, 2022);
+  // myRTC.setDS1302Time(00, 38, 10, 4, 29, 12, 2022); // SS, MM, HH, DW, DD, MM, YYYY
+  // myRTC.setDS1302Time(00, 10, 18, 4, 29, 12, 2022);  // SS, MM, HH, DW, DD, MM, YYYY
 
   Wire.begin(8);                 // join i2c bus with address #8,you can define whatever address you want like '4'
   Wire.onRequest(requestEvent);  // register event
@@ -255,8 +280,9 @@ void loop() {
     syncGPSDateTime();  // check if SAT_B still falls asleep
     startSync = false;
 
-    String timestamp = getTimestampTime();
-    Serial.print("\n" + timestamp);
+    // String timestamp = getTimestampTime();
+    // Serial.print("\n" + timestamp);
+
     // String timestampDate = getTimestampDate();
     // Serial.print(", " + timestampDate);
 
@@ -306,10 +332,10 @@ bool validTimeToSave(int flag) {
   return false;
 }
 
-// Checks if is the correct time to initiate RTC-GPS synchronization
+// Checks if is the correct UTC time to initiate RTC-GPS synchronization
 bool validTimeToSync() {
-  // if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) {
-  if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
+  if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) {
+    // if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
     return true;
   } else {
     return false;
@@ -548,14 +574,11 @@ void syncGPSDateTime() {
 
         if (gpsDate && gpsTime) {
           if (day > 0 && day <= 31 && month <= 12 && year == 2023) {
-
             // Update RTC with GPS UTC time
             myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
             break;
           }
         }
-
-
 
       }  // end if gps.encode(ss.read())
     }    // end if ss.available()

@@ -64,8 +64,8 @@ RH_ASK rf_driver(2000, A3, 9, 0);  // speed in bps, rxPin, txPin, pttPin <-- Sen
 #define BME_CS 10  // CSB
 
 //Variables
-int spacecraftMode = 1;  // Modes -> 0: Safe Mode, 1: ESM, 2: RTW, 3: RTI, 4: RTWI
-int lastMode = 1;
+int spacecraftMode = 4;  // Modes -> 0: Safe Mode, 1: ESM, 2: RTW, 3: RTI, 4: RTWI
+int lastMode = 4; // should be same as spacecraftMode when compiling
 float pressureGroundLevel;  // Current pressure when CubeSat started
 float pitch, roll, yaw;     // Inertial Measurement Unit variables
 
