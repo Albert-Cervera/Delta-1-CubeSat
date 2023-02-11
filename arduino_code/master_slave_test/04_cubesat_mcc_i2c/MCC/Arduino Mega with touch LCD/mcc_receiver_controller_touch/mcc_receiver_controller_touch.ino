@@ -383,7 +383,7 @@ void loop() {
     // sendDataI2C(); // Send telemetryData via I2C to peripheral slave
 
   } else if ((rf_driver.recv(buf, &buflen) == 0)) {
-    // If NO data is received ...    
+    // If NO data is received ...
     /*
     TODO: When no signal is received from Delta1, display in some screen
     how many seconds have happened since LOS (Loss of Signal).
@@ -392,7 +392,7 @@ void loop() {
 
     currentMillis = millis();
     // If in 10 mins, 30 secs no data is received, display message
-    if (currentMillis - lastDataReceived >= losTolerance) {      
+    if (currentMillis - lastDataReceived >= losTolerance) {
       signalAct();
       // clearMessageStatusBar();
       // tft.setCursor(1, 1);
@@ -708,6 +708,15 @@ void loop() {
       //   yled(550);
       //   clearMessage();
       // }
+      if (page == 43) {
+        m43b5action();
+        tft.setCursor(12, 213);
+        tft.setTextColor(RED);
+        tft.setTextSize(2);
+        tft.println("Plotting ...");
+        yled(550);
+        clearMessage();
+      }
       if (page == 4) {
         m4b5action();
         tft.setCursor(12, 213);
@@ -717,6 +726,7 @@ void loop() {
         yled(550);
         clearMessage();
       }
+
       // No button or action there
       // if (page == 3) {
       //   m3b5action();
@@ -1705,8 +1715,8 @@ void m1b1action() {
   // Modes -> 0: Safe Mode, 1: ESM, 2: RTW, 3: RTI, 4: RTWI
   String stringMode;
   switch (systemData.mode) {
-    case -1:      
-      stringMode = " (UNKN)";      
+    case -1:
+      stringMode = " (UNKN)";
       break;
     case 0:
       stringMode = " (SAFE)";
@@ -1723,7 +1733,6 @@ void m1b1action() {
     case 4:
       stringMode = " (RTWI)";
       break;
-
   }
 
   tft.setCursor(22, 37);
@@ -1737,7 +1746,7 @@ void m1b1action() {
   tft.println("Internal Temp: " + String(systemData.internalTemp) + "\367" + "C");
 }
 
-void m1b2action() {  
+void m1b2action() {
   clearCenter();
   boxes(3);
   page = 12;
@@ -1884,13 +1893,31 @@ void m4b2action() {
 
 void m4b3action() {
   lastPage = 43;
+  page = 43;  // set current page so area 5 is listened
   clearCenter();
-  enableArea = false;
+  enableArea = true;
 
   tft.setCursor(22, 37);
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
   tft.println("Barometer: " + String(telemetryData.pressure) + " hPa");
+
+  buttonGraph();  // 431 Page 4, button 3, sub-button 1
+}
+
+void m43b5action() {
+  lastPage = 1;  // set it to a page that does not refresh (maybe 1?)
+  clearCenter();
+  enableArea = false;
+
+  tft.setCursor(22, 27);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(1);
+  tft.println("Beautiful graph here");
+
+  plotData(1, true);
+  // 1:barometer, 2: temperature
+  // true: ESM, false:RTWI
 }
 
 void m4b4action() {
@@ -2170,6 +2197,16 @@ void blBar() {  // this function fills the yellow bar in the backlight brightnes
   delay(25);
 }
 
+void buttonGraph() {
+  tft.drawRect(0, 140, 150, 50, JJCOLOR);  // 5th position
+  tft.setCursor(41, 157);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Graphs");
+
+  // set action with the lastPage pulsed
+}
+
 void boxes(int howMany) {  // redraw the button outline boxes
   switch (howMany) {
     case 1:
@@ -2321,4 +2358,25 @@ void drawBatt() {
     tft.fillRect(298, 2, battfill, 6, RED);
   }
   battold = battv;  // this helps determine if redrawing the battfill area is necessary
+}
+
+void plotData(int type, bool esm) {
+  // 1:barometer, 2: temperature
+  // true: ESM, false:RTWI
+
+  /*
+    Steps: 
+    1) read data from SD card
+    2) ...
+  */
+
+  /*
+    x：x coordinate of the starting point
+    y：y coordinate of the starting point
+    w：the length of the square
+    h：the width of the square
+    color：the color of the square
+  */
+
+  tft.drawRect(100, 20, 299, 200, JJCOLOR);
 }
