@@ -31,7 +31,7 @@
 //
 // REVISION HISTORY:
 // 07 February 2023 - Initial Version
-// 07 February 2023 - Modification
+// 11 February 2023 - Modification
 // -- -- 2023 - Final first Version
 //
 // TODO_dd_mmm_yyyy - TODO_describe_appropriate_changes - TODO_name
@@ -43,7 +43,8 @@
 #include <TouchScreen.h>
 #include <RH_ASK.h>  // RadioHead Amplitude Shift Keying Library
 #include <Wire.h>
-
+#include <SD.h>
+#include <limits.h>
 
 // *****************************************************************************
 // Touchscreen configuration ***************************************************
@@ -90,6 +91,13 @@ TouchScreen ts = TouchScreen(XP, YP, XM, YM, 300);
 
 Elegoo_TFTLCD tft(LCD_CS, LCD_CD, LCD_WR, LCD_RD, LCD_RESET);
 
+// Plotting parameters
+int scale1 = 1;
+int scale2 = 2;
+int scale4 = 4;
+int scale8 = 8;
+int incrementation = 24;  // At first: how many pixels to move the starting point of plot
+
 int i = 0;
 int page = 0;
 int lastPage = 0;
@@ -133,11 +141,17 @@ long readVcc() {
   return result;
 }
 
+
 // Delta-1 MCC parameters
 bool enableArea = true;
 
 // *****************************************************************************
 // MCC internal configuration **************************************************
+
+#define CS_PIN 53  // Arduino Mega SD pin (10 on Arduino Uno)
+File myFile;
+char delim = ';';
+String buffer;  // For reading file line by line
 
 // Create Amplitude Shift Keying Object
 // Params: speed in BPS, rxPin, txPin, pttPin
@@ -322,6 +336,17 @@ void setup() {
   systemData.mode = -1;  // To differentiate actual '0 mode' vs no data received.
   lastDataReceived = 0;
   rf_driver.init();  // Initialize ASK Object
+
+  Serial.print("Initializing SD card... ");
+  if (!SD.begin(CS_PIN)) {
+    Serial.println("initialization failed!");
+    while (1)
+      ;  // Validate this part: If the SD card fails, wouldn't I want to continue using MCC?
+  }
+  Serial.println("initialization done.");
+  // Remove existing file.
+  //  SD.remove("READTEST.TXT"); // Code that I'll never use here, but is useful to know
+
 }  // end void setup()
 
 void loop() {
@@ -976,7 +1001,7 @@ void sendCommandAndListen(float command, int seconds, bool altitudReset) {
     startTime2 = millis();
     endTime2 = startTime2;
     while ((endTime2 - startTime2) <= 2000) {  // transmit 2 seconds
-      rf_driver.send((uint8_t *)tx_buf, zize);
+      rf_driver.send((uint8_t*)tx_buf, zize);
       rf_driver.waitPacketSent();
       endTime2 = millis();
     }
@@ -1040,7 +1065,7 @@ void sendCommand(float command, int seconds) {
   unsigned long startTime = millis();
   unsigned long endTime = startTime;
   while ((endTime - startTime) <= msTransmit) {
-    rf_driver.send((uint8_t *)tx_buf, zize);
+    rf_driver.send((uint8_t*)tx_buf, zize);
     rf_driver.waitPacketSent();
     endTime = millis();
   }
@@ -1910,12 +1935,7 @@ void m43b5action() {
   clearCenter();
   enableArea = false;
 
-  tft.setCursor(22, 27);
-  tft.setTextColor(WHITE);
-  tft.setTextSize(1);
-  tft.println("Beautiful graph here");
-
-  plotData(1, true);
+  plotGraph(1, true);
   // 1:barometer, 2: temperature
   // true: ESM, false:RTWI
 }
@@ -2360,7 +2380,8 @@ void drawBatt() {
   battold = battv;  // this helps determine if redrawing the battfill area is necessary
 }
 
-void plotData(int type, bool esm) {
+
+void plotGraph(int type, bool esm) {
   // 1:barometer, 2: temperature
   // true: ESM, false:RTWI
 
@@ -2378,5 +2399,274 @@ void plotData(int type, bool esm) {
     color：the color of the square
   */
 
-  tft.drawRect(100, 20, 299, 200, JJCOLOR);
+
+  // tft.setCursor(190, 27);
+  // tft.setTextColor(WHITE);
+  // tft.setTextSize(1);
+  // tft.println("Air Pressure");
+
+  // Plot graph bars
+  tft.fillRect(20, 15, 3, 145, WHITE);   // Y axis
+  tft.fillRect(20, 160, 272, 3, WHITE);  // X axis
+
+  // Y axis cross lines
+  tft.drawLine(17, 87, 20, 87, WHITE);
+  tft.drawLine(17, 15, 20, 15, WHITE);
+
+  // X axis cross lines (24 lines)
+  tft.drawLine(33, 160, 33, 166, WHITE);
+  tft.drawLine(43, 160, 43, 166, WHITE);
+  tft.drawLine(53, 160, 53, 166, WHITE);
+  tft.drawLine(63, 160, 63, 166, WHITE);
+  tft.drawLine(73, 160, 73, 166, WHITE);
+  tft.drawLine(83, 160, 83, 166, WHITE);
+  tft.drawLine(93, 160, 93, 166, WHITE);
+  tft.drawLine(103, 160, 103, 166, WHITE);
+  tft.drawLine(113, 160, 113, 166, WHITE);
+  tft.drawLine(123, 160, 123, 166, WHITE);
+  tft.drawLine(133, 160, 133, 166, WHITE);
+  tft.drawLine(143, 160, 143, 166, WHITE);
+  tft.drawLine(153, 160, 153, 166, WHITE);
+  tft.drawLine(163, 160, 163, 166, WHITE);
+  tft.drawLine(173, 160, 173, 166, WHITE);
+  tft.drawLine(183, 160, 183, 166, WHITE);
+  tft.drawLine(193, 160, 193, 166, WHITE);
+  tft.drawLine(203, 160, 203, 166, WHITE);
+  tft.drawLine(213, 160, 213, 166, WHITE);
+  tft.drawLine(223, 160, 223, 166, WHITE);
+  tft.drawLine(233, 160, 233, 166, WHITE);
+  tft.drawLine(243, 160, 243, 166, WHITE);
+  tft.drawLine(253, 160, 253, 166, WHITE);
+  tft.drawLine(263, 160, 263, 166, WHITE);  // 24th
+  // tft.drawLine(273, 160, 273, 166, WHITE);
+  // tft.drawLine(283, 160, 283, 166, WHITE); // 26th
+
+  tft.setCursor(30, 190);
+  tft.setTextColor(CYAN);
+  tft.setTextSize(1);
+  tft.println("Air Pressure");
+
+  // tft.setCursor(125, 190);
+  // tft.setTextColor(GREEN);
+  // tft.setTextSize(1);
+  // tft.println("Heat values");
+
+  // tft.setCursor(212, 190);
+  // tft.setTextColor(RED);
+  // tft.setTextSize(1);
+  // tft.println("Smoke values");
+
+  tft.setCursor(188, 171);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(1);
+  tft.println("Time (24 hours)");
+
+  tft.setCursor(31, 170);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(1);
+  tft.println(scale1);
+
+  tft.setCursor(41, 170);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(1);
+  tft.println(scale2);
+
+  tft.setCursor(61, 170);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(1);
+  tft.println(scale4);
+
+  tft.setCursor(101, 170);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(1);
+  tft.println(scale8);
+
+  readData();
+}
+
+// int dataPoints[24];  // Rounded data points from sensor (like pressure)
+
+void plotData(int dataPoints[], int dataLength, int minVal, int maxVal) {
+  /*
+    The 'real' function should read data from SD card
+    and extract the needed data points to plot.
+    This function should receive a parameter
+    indicating which data to retrieve.
+  */
+
+  tft.setCursor(10, 164);
+  tft.setTextColor(GREEN);
+  tft.setTextSize(1);
+  tft.println(minVal);  // Scale start: Should be the lowest air pressure value (i.e. 776.00, or 1013)
+
+  tft.setCursor(10, 12);
+  tft.setTextColor(GREEN);
+  tft.setTextSize(1);
+  tft.println(maxVal); // Max val on chart
+
+  int medianVal = round((maxVal + minVal)/2);
+
+  tft.setCursor(10, 87);
+  tft.setTextColor(GREEN);
+  tft.setTextSize(1);
+  tft.println(medianVal); // Max val on chart
+
+  // tft.drawLine(17, 87, 20, 87, WHITE); // AT MIDDLE
+  // tft.drawLine(17, 15, 20, 15, WHITE);
+
+  for (int i = 0; i <= dataLength; i++) { // sizeof(dataPoints)
+
+    int val = dataPoints[i];
+
+    int fromLow = minVal;                                    // Min of present pressure // orignally: 0, now 776
+    int fromHigh = maxVal;                                   // Max of present pressure // orignally: 1024 now 781
+    int toLow = 159;                                         // The minimum number of the desired range to which the value is to be mapped
+    int toHigh = 15;                                         // The maximum number of the desired range to which the value is to be mapped
+    int valab = map(val, fromLow, fromHigh, toLow, toHigh);  // Map pressure value to a pixel number (between 15 ( = 1024 ) and 159 ( = 0 )) that represent the progress on the Y axis.
+    Serial.print("\nMapped pixel: " + String(valab));        // [!!!] Always 50!
+
+    tft.fillCircle(incrementation, valab, 1, CYAN);  // x0：x coordinate of the center point , y0：y coordinate of the center point, r：radius of the circle, color：teh color of the circle
+    incrementation += 10;                            // incrementation ++; // 10 or 9 seems fine
+
+    /*
+    if (scale1 == 27) {
+      tft.fillRect(3, 120, 16, 60, BLACK);
+    }
+    if (incrementation > 282) {
+      tft.fillRect(10, 166, 100, 12, BLACK);
+      scale1 = scale1 + 26;
+      scale2 = scale2 + 26;
+      scale4 = scale4 + 26;
+      scale8 = scale8 + 26;
+      tft.setCursor(26, 170);
+      tft.setTextColor(WHITE);
+      tft.setTextSize(1);
+      tft.println(scale1);
+      tft.setCursor(41, 170);
+      if (scale2 > 10) {
+        tft.setCursor(39, 170);
+      }
+      if (scale2 < 100) {
+        tft.setTextColor(WHITE);
+        tft.setTextSize(1);
+        tft.println(scale2);
+      }
+      tft.setCursor(61, 170);
+      tft.setTextColor(WHITE);
+      tft.setTextSize(1);
+      tft.println(scale4);
+      tft.setCursor(101, 170);
+      tft.setTextColor(WHITE);
+      tft.setTextSize(1);
+      tft.println(scale8);
+      tft.fillRect(23, 14, 269, 146, BLACK);
+
+      incrementation = 24;
+    }
+    */
+    
+
+
+
+  }  // end for loop
+  incrementation = 24;
+}
+
+
+void readData() {
+
+  /* 
+    Function that reads a txt file with CSV 
+    style and get time and pressure data.
+
+    From Web example:
+    DataType: int, float, float, float, char[8], char[8]
+    Variable: tcalc, t1, t2, h1, h2, timeS, dateS
+    Delimitor; ','
+
+    ESM real data sample:
+    time,date,humidity,temperature,pressure,localAltitude,pitch,roll,yaw
+    15:30:00,15/12/2022,47.50,20.10,776.52,0.04,-0.27,-1.37,16.92
+
+    9 vals: 2 time/date and 7 floats (though maybe they're all strings in the txt)
+  */
+
+
+  
+
+  // open the file for reading:
+  String filePath = "24_HOUR/ESM24.txt";  // "ESM24.txt";
+  // String filePath = "72_HOUR/1_ESM/ESMTEL.txt";
+
+
+  myFile = SD.open(filePath);
+  // If we were to write something, then: myFile = SD.open("test.txt", FILE_WRITE);
+
+  if (myFile) {
+    Serial.println("Reading " + filePath + ": ");
+
+    // Rewind the file for read.
+    // Seeks to a new position in the file, between 0 and size of file (inclusive)
+    myFile.seek(68);  // Consider that the frist row is for column names, hence I need to move to first real data index. POS: 68
+
+    int dataPoints[24];  // Rounded data points from sensor (like pressure)
+    int minVal = 3000;  // an amount of hPa that could never be true
+    int maxVal = 0;
+    int counter = 0;
+
+    while (myFile.available()) {
+
+      buffer = myFile.readStringUntil('\n');
+      // Serial.println(buffer);
+
+      String pressure = getValue(buffer, ',', 4);
+      Serial.print("\n-----------------\n");
+      Serial.println(pressure);
+      int val = round(pressure.toFloat());
+      Serial.println(val);
+
+
+      dataPoints[counter] = val;
+      counter++;
+
+      // Now I need to get the min and Max vals from an array
+      if (val != 0 && val < minVal) {
+        // a new minimum is found
+        minVal = val;
+      }
+
+      if (val > maxVal) {
+        // a new maximum is found
+        maxVal = val;
+      }
+
+
+    }                // end of while
+    myFile.close();  // close the file
+
+    Serial.print("\nminVal: " + String(minVal));
+    Serial.print("\nmaxVal: " + String(maxVal));
+    
+    plotData(dataPoints, sizeof(dataPoints), minVal, maxVal); // <-- Plotting actual data points
+
+  } else {
+    // if the file didn't open, print an error:
+    Serial.println("[!!!] Error opening " + filePath);
+  }
+}
+
+String getValue(String data, char separator, int index) {
+  int found = 0;
+  int strIndex[] = { 0, -1 };
+  int maxIndex = data.length() - 1;
+
+  for (int i = 0; i <= maxIndex && found <= index; i++) {
+    if (data.charAt(i) == separator || i == maxIndex) {
+      found++;
+      strIndex[0] = strIndex[1] + 1;
+      strIndex[1] = (i == maxIndex) ? i + 1 : i;
+    }
+  }
+
+  return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
 }
