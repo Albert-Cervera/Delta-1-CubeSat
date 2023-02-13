@@ -45,6 +45,9 @@
 #include <Wire.h>
 #include <SD.h>
 #include <limits.h>
+#include <virtuabotixRTC.h>
+#include <TinyGPS++.h>
+#include <SoftwareSerial.h>  // Also for GPS ()
 
 // *****************************************************************************
 // Touchscreen configuration ***************************************************
@@ -156,9 +159,13 @@ String buffer;  // For reading file line by line
 // Create Amplitude Shift Keying Object
 // Params: speed in BPS, rxPin, txPin, pttPin
 RH_ASK rf_driver(2000, 21, 20, 0);  // <-- Receive on PIN 21 and transmit on PIN 20
+virtuabotixRTC myRTC(25, 27, 29);   // Real Time Clock
+SoftwareSerial ss(A12, A11);          // The serial connection to the GPS device: RXPin, TXPin
 
 unsigned long lastDataReceived;  // miliseconds with no signal from transmitter
 unsigned long currentMillis;     // current miliseconds var to compare data
+String referenceTime;            // Reference time for updating mission clock on screen
+bool startSync = false;          // For RTC-GPS sync
 bool rcvdTx;
 uint32_t losTolerance = 630000;  // 630000, Loss of Signal tolerance in ms //630 sec = 10 min, 30 sec
 float heatIndex;
@@ -318,24 +325,24 @@ void setup() {
   tft.fillScreen(BLACK);
   tft.fillRect(0, 0, 320, 10, JJCOLOR);  // status bar
   drawHomeIcon();                        // draw the home icon
-  // tft.setCursor(1, 1);
-  // tft.setTextColor(WHITE);
-  // tft.setTextSize(1);
-  // tft.println("Mission Control Center        Delta-1 Mission");
-  tft.drawRect(297, 1, 20, 8, WHITE);  //battery body
-  tft.fillRect(317, 3, 2, 4, WHITE);   // battery tip
-  tft.fillRect(298, 2, 18, 6, BLACK);  // clear the center of the battery
-  drawBatt();
-  ant();                                 // draw the bas "antenna" line without the "signal waves"
+  // tft.drawRect(297, 1, 20, 8, WHITE);  //battery body
+  // tft.fillRect(317, 3, 2, 4, WHITE);   // battery tip
+  // tft.fillRect(298, 2, 18, 6, BLACK);  // clear the center of the battery
+  // drawBatt(); // at void setup()
+  ant();                                 // draw the base "antenna" line without the "signal waves"
   signal(false);                         // draw the "signal waves" around the "antenna" - MODIFIED: Receives a 'bool green' value.
   homescr();                             // draw the homescreen
   tft.drawRect(0, 200, 245, 40, WHITE);  // message box
-
 
   // MCC configuration -----------------------------------------------------------
   systemData.mode = -1;  // To differentiate actual '0 mode' vs no data received.
   lastDataReceived = 0;
   rf_driver.init();  // Initialize ASK Object
+  referenceTime = getTimestampTime();
+
+  // Set the current date, and time (monday is day 1, sunday is 7)
+  // NOTE: to sync, upload code when real time is about to change to 40 seconds
+  // myRTC.setDS1302Time(00, 56, 22, 7, 12, 02, 2023);  // SS, MM, HH, DW, DD, MM, YYYY
 
   Serial.print("Initializing SD card... ");
   if (!SD.begin(CS_PIN)) {
@@ -352,6 +359,12 @@ void setup() {
 void loop() {
 
   // MCC configuration -----------------------------------------------------------
+
+  // String timestamp = getTimestampTime();
+  // Serial.print("\nTimestamp: ");
+  // Serial.print(timestamp);
+  // String timestampDate = getTimestampDate();
+  // Serial.print(", " + timestampDate);
 
   // Receiver antenna code -----------------------------
   // Set buffer to size of expected message
@@ -427,8 +440,23 @@ void loop() {
     }
   }
 
-  // Serial.println("Pitch: " + String(telemetryData.pitch));
-  // Serial.println("rcvdTx: " + String(rcvdTx));
+  if (validTimeToSync()) {  // Sync with GPS
+    startSync = true;
+  }
+
+
+  if (startSync) {
+    // syncGPSDateTime();  // check if SAT_B still falls asleep
+    startSync = false;
+
+    // String timestamp = getTimestampTime();
+    // Serial.print("\n" + timestamp);
+
+    // String timestampDate = getTimestampDate();
+    // Serial.print(", " + timestampDate);
+
+    // getGPSData();
+  }
 
   // UI configuration ------------------------------------------------------------
 
@@ -495,6 +523,7 @@ void loop() {
       if (page == 5) {                                                     // and if page 5 is drawn on the screen
         m5b1action();                                                      // do whatever this button is
         // tft.drawString(12, 213, "Menu 5 B1", RED, 2); // display the command in the "message box"
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -504,6 +533,7 @@ void loop() {
       }
       if (page == 4) {
         m4b1action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -513,6 +543,7 @@ void loop() {
       }
       if (page == 3) {
         m3b1action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -522,6 +553,7 @@ void loop() {
       }
       if (page == 2) {
         m2b1action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -537,6 +569,7 @@ void loop() {
       }
       if (page == 1) {
         m1b1action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -553,6 +586,7 @@ void loop() {
     if (p.y > 0 && p.y < 150 && p.x > 170 && p.x < 217 && enableArea) {
       if (page == 5) {
         m5b2action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -562,7 +596,7 @@ void loop() {
       }
       if (page == 4) {
         m4b2action();
-
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -572,6 +606,7 @@ void loop() {
       }
       if (page == 3) {
         m3b2action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -581,6 +616,7 @@ void loop() {
       }
       if (page == 2) {
         m2b2action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -596,6 +632,7 @@ void loop() {
       }
       if (page == 1) {
         m1b2action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -622,6 +659,7 @@ void loop() {
       // }
       if (page == 4) {
         m4b3action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -631,6 +669,7 @@ void loop() {
       }
       if (page == 3) {
         m3b3action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -640,6 +679,7 @@ void loop() {
       }
       if (page == 2) {
         m2b3action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -655,6 +695,7 @@ void loop() {
       }
       if (page == 1) {
         m1b3action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -680,6 +721,7 @@ void loop() {
       // }
       if (page == 4) {
         m4b4action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -689,6 +731,7 @@ void loop() {
       }
       if (page == 3) {
         m3b4action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -698,6 +741,7 @@ void loop() {
       }
       if (page == 2) {
         m2b4action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -710,6 +754,7 @@ void loop() {
       }
       if (page == 1) {
         m1b4action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -735,6 +780,7 @@ void loop() {
       // }
       if (page == 43) {
         m43b5action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -744,6 +790,7 @@ void loop() {
       }
       if (page == 4) {
         m4b5action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -764,6 +811,7 @@ void loop() {
       // }
       if (page == 2) {
         m2b5action();
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -803,7 +851,7 @@ void loop() {
       if (page == 4) {
         m4b6action();
         // clearCenter();
-
+        clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
@@ -946,11 +994,22 @@ void loop() {
 
   // Battery check
   if (currenttime - prevbatt > battcheck) {
-    drawBatt();
+    // drawBatt(); // at void loop()
     prevbatt = currenttime;
   }
 
+  // Mission Clock update
+  String currentTime = getTimestampTime();
+
+  if (referenceTime != currentTime) {
+    drawClock(currentTime);
+    referenceTime = currentTime;
+  }
+
+
+
   // delay(250);  // from MCC code (Menu test didn't had this)
+  //delay(1000);  // Just for seeing the clock
 }  // end void loop()
 
 // *****************************************************************************
@@ -1107,6 +1166,95 @@ float heatIndexFullEquation(float T, float R) {
   }
 
   return HI;
+}
+
+String setTwoDigits(uint8_t val) {
+  if (val < 10) {
+    return "0" + String(val);
+  } else {
+    return String(val);
+  }
+}
+
+String getTimestampDate() {
+  myRTC.updateTime();
+  return setTwoDigits(myRTC.dayofmonth) + "/" + setTwoDigits(myRTC.month) + "/" + String(myRTC.year);
+}
+
+String getTimestampTime() {
+  myRTC.updateTime();
+  return setTwoDigits(myRTC.hours) + ":" + setTwoDigits(myRTC.minutes) + ":" + setTwoDigits(myRTC.seconds);
+}
+
+// Checks if is the correct UTC time to initiate RTC-GPS synchronization
+bool validTimeToSync() {
+  // if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) { // Original (good) proposal
+  if ((myRTC.minutes == 03 || myRTC.minutes == 05 || myRTC.minutes == 56 || myRTC.minutes == 57) && myRTC.seconds == 00) { // Every minute
+    // if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+// Gets UTC time via GPS and syncs RTC
+void syncGPSDateTime() {
+  TinyGPSPlus gps;  // The TinyGPS++ object
+
+  Serial.print("\nSyncing GPS");
+
+  int day, month, year, hour, minute, second;
+  // String latitude, longitude, altitude;
+  unsigned long startTime = millis();
+  unsigned long endTime = startTime;
+  bool gpsDate, gpsTime = false;
+
+  // 9 mins = 540 secs
+  while ((endTime - startTime) <= 540000) {
+    if (ss.available() > 0) {
+      if (gps.encode(ss.read())) {
+
+        if (gps.date.isValid()) {
+          day = gps.date.day();
+          month = gps.date.month();
+          year = gps.date.year();
+          gpsDate = true;
+        }
+
+        if (gps.time.isValid()) {
+          hour = gps.time.hour();
+          minute = gps.time.minute();
+          second = gps.time.second();
+          gpsTime = true;
+        }
+
+        Serial.print("\nTime: ");
+        Serial.print(hour);
+        Serial.print(":");
+        Serial.print(minute);
+        Serial.print(":");
+        Serial.print(second);
+
+        Serial.print(" , Date: ");
+        Serial.print(day);
+        Serial.print("/");
+        Serial.print(month);
+        Serial.print("/");
+        Serial.print(year);
+
+        if (gpsDate && gpsTime) {
+          if (day > 0 && day <= 31 && month <= 12 && year == 2023) {
+            // Update RTC with GPS UTC time
+            myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
+            break;
+          }
+        }
+
+      }  // end if gps.encode(ss.read())
+    }    // end if ss.available()
+
+    endTime = millis();
+  }  // end while 9 mins
 }
 
 // *****************************************************************************
@@ -1500,6 +1648,7 @@ void settingsScr() {
   battv = readVcc();  // read the voltage
   itoa(battv, voltage, 10);
   // tft.drawString(12, 213, voltage, YELLOW, 2);
+  clearMessage();
   tft.setCursor(12, 213);
   tft.setTextColor(YELLOW);
   tft.setTextSize(2);
@@ -2082,6 +2231,7 @@ void m5b6action() {
 // Sub-menu definitions
 
 void m12b1action() {
+  clearMessage();
   tft.setCursor(12, 213);
   tft.setTextColor(RED);
   tft.setTextSize(2);
@@ -2091,6 +2241,7 @@ void m12b1action() {
 }
 
 void m12b2action() {
+  clearMessage();
   tft.setCursor(12, 213);
   tft.setTextColor(RED);
   tft.setTextSize(2);
@@ -2100,6 +2251,7 @@ void m12b2action() {
 }
 
 void m12b3action() {
+  clearMessage();
   tft.setCursor(12, 213);
   tft.setTextColor(RED);
   tft.setTextSize(2);
@@ -2124,6 +2276,7 @@ void m13b1action() {
   tft.setTextColor(GREEN);
   tft.setTextSize(2);
   tft.println("[OK] ESM requested");
+  delay(2000);
 }
 
 void m13b2action() {
@@ -2141,6 +2294,7 @@ void m13b2action() {
   tft.setTextColor(GREEN);
   tft.setTextSize(2);
   tft.println("[OK] RTWI requested");
+  delay(2000);
 }
 
 void m13b3action() {
@@ -2159,6 +2313,7 @@ void m13b3action() {
   tft.setTextColor(GREEN);
   tft.setTextSize(2);
   tft.println("[OK] RTI requested");
+  delay(2000);
 }
 
 void m13b4action() {
@@ -2177,6 +2332,7 @@ void m13b4action() {
   tft.setTextColor(GREEN);
   tft.setTextSize(2);
   tft.println("[OK] RTWI requested");
+  delay(2000);
 }
 
 void m13b5action() {
@@ -2380,6 +2536,27 @@ void drawBatt() {
   battold = battv;  // this helps determine if redrawing the battfill area is necessary
 }
 
+void drawClock(String time) {
+
+  /*
+    Updates the mission clock and displays it on screen.
+    It should be updated every second
+
+  */
+
+  clearMessage();
+
+  tft.setCursor(12, 213);
+  tft.setTextColor(MARS);
+  tft.setTextSize(2);
+  tft.println(time);
+
+  tft.setCursor(120, 213);
+  tft.setTextColor(MARS);
+  tft.setTextSize(2);
+  tft.println("UTC");
+}
+
 
 void plotGraph(int type, bool esm) {
   // 1:barometer, 2: temperature
@@ -2484,8 +2661,6 @@ void plotGraph(int type, bool esm) {
   readData();
 }
 
-// int dataPoints[24];  // Rounded data points from sensor (like pressure)
-
 void plotData(int dataPoints[], int dataLength, int minVal, int maxVal) {
   /*
     The 'real' function should read data from SD card
@@ -2502,28 +2677,34 @@ void plotData(int dataPoints[], int dataLength, int minVal, int maxVal) {
   tft.setCursor(10, 12);
   tft.setTextColor(GREEN);
   tft.setTextSize(1);
-  tft.println(maxVal); // Max val on chart
+  tft.println(maxVal);  // Max val on chart
 
-  int medianVal = round((maxVal + minVal)/2);
+  int medianVal = round((maxVal + minVal) / 2);
 
   tft.setCursor(10, 87);
   tft.setTextColor(GREEN);
   tft.setTextSize(1);
-  tft.println(medianVal); // Max val on chart
+  tft.println(medianVal);  // Max val on chart
 
   // tft.drawLine(17, 87, 20, 87, WHITE); // AT MIDDLE
   // tft.drawLine(17, 15, 20, 15, WHITE);
 
-  for (int i = 0; i <= dataLength; i++) { // sizeof(dataPoints)
+  int mappedPixels[dataLength];
+
+  for (int i = 0; i <= dataLength; i++) {  // sizeof(dataPoints)
 
     int val = dataPoints[i];
 
-    int fromLow = minVal;                                    // Min of present pressure // orignally: 0, now 776
-    int fromHigh = maxVal;                                   // Max of present pressure // orignally: 1024 now 781
-    int toLow = 159;                                         // The minimum number of the desired range to which the value is to be mapped
-    int toHigh = 15;                                         // The maximum number of the desired range to which the value is to be mapped
+    int fromLow = minVal;   // Min of present pressure // orignally: 0, now 776
+    int fromHigh = maxVal;  // Max of present pressure // orignally: 1024 now 781
+    int toLow = 159;        // The minimum number of the desired range to which the value is to be mapped
+    int toHigh = 15;        // The maximum number of the desired range to which the value is to be mapped
+
     int valab = map(val, fromLow, fromHigh, toLow, toHigh);  // Map pressure value to a pixel number (between 15 ( = 1024 ) and 159 ( = 0 )) that represent the progress on the Y axis.
-    Serial.print("\nMapped pixel: " + String(valab));        // [!!!] Always 50!
+    // Idea for some other time: map the int part of val, map the decimal part, and add them together
+
+    Serial.print("\nMapped pixel: " + String(valab));
+    mappedPixels[i] = valab;
 
     tft.fillCircle(incrementation, valab, 1, CYAN);  // x0：x coordinate of the center point , y0：y coordinate of the center point, r：radius of the circle, color：teh color of the circle
     incrementation += 10;                            // incrementation ++; // 10 or 9 seems fine
@@ -2564,14 +2745,23 @@ void plotData(int dataPoints[], int dataLength, int minVal, int maxVal) {
       incrementation = 24;
     }
     */
-    
-
 
 
   }  // end for loop
   incrementation = 24;
-}
 
+  for (int i = 0; i < dataLength; i++) {
+    // Draw a line between points
+    if (i != 0) {
+      tft.drawLine(incrementation, mappedPixels[i], incrementation + 10, mappedPixels[i + 1], CYAN);  // (x0,y0, x1,y1, color)
+    }
+    incrementation += 10;  // Account for next jump
+    if (i == int(dataLength) - 1) {
+      break;
+    }
+  }
+  incrementation = 24;  // reset it again
+}
 
 void readData() {
 
@@ -2592,8 +2782,6 @@ void readData() {
   */
 
 
-  
-
   // open the file for reading:
   String filePath = "24_HOUR/ESM24.txt";  // "ESM24.txt";
   // String filePath = "72_HOUR/1_ESM/ESMTEL.txt";
@@ -2609,8 +2797,8 @@ void readData() {
     // Seeks to a new position in the file, between 0 and size of file (inclusive)
     myFile.seek(68);  // Consider that the frist row is for column names, hence I need to move to first real data index. POS: 68
 
-    int dataPoints[24];  // Rounded data points from sensor (like pressure)
-    int minVal = 3000;  // an amount of hPa that could never be true
+    int dataPoints[12];  // '12' to have 24 slots in array Rounded data points from sensor (like pressure)
+    int minVal = 3000;   // an amount of hPa that could never be true
     int maxVal = 0;
     int counter = 0;
 
@@ -2619,7 +2807,7 @@ void readData() {
       buffer = myFile.readStringUntil('\n');
       // Serial.println(buffer);
 
-      String pressure = getValue(buffer, ',', 4);
+      String pressure = getValue(buffer, ',', 4);  // 4 for pressure // time,date,humidity,temperature,pressure,localAltitude,pitch,roll,yaw
       Serial.print("\n-----------------\n");
       Serial.println(pressure);
       int val = round(pressure.toFloat());
@@ -2646,8 +2834,8 @@ void readData() {
 
     Serial.print("\nminVal: " + String(minVal));
     Serial.print("\nmaxVal: " + String(maxVal));
-    
-    plotData(dataPoints, sizeof(dataPoints), minVal, maxVal); // <-- Plotting actual data points
+
+    plotData(dataPoints, sizeof(dataPoints), minVal, maxVal);  // <-- Plotting actual data points
 
   } else {
     // if the file didn't open, print an error:
