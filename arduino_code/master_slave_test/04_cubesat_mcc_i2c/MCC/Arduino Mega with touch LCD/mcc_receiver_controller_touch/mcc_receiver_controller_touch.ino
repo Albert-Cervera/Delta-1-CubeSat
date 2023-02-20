@@ -165,7 +165,8 @@ SoftwareSerial ss(A12, A11);        // The serial connection to the GPS device: 
 
 unsigned long lastDataReceived;  // miliseconds with no signal from transmitter
 unsigned long currentMillis;     // current miliseconds var to compare data
-String referenceTime;            // Reference time for updating mission clock on screen
+String referenceTime;            // Time reference for updating mission clock on screen
+String rcvdTime;                 // Time reference for last time a signal was received from CubeSat
 bool startSync = false;          // For RTC-GPS sync
 bool rcvdTx;
 uint32_t losTolerance = 630000;  // 630000, Loss of Signal tolerance in ms //630 sec = 10 min, 30 sec
@@ -394,6 +395,7 @@ void loop() {
 
     // Serial.print("\n[OK] Data rcvd from CubeSat\n");
     rcvdTx = true;
+    rcvdTime = getTimestampTime();
 
     lastDataReceived = millis();
     memcpy(&transferData, buf, sizeof(transferData));
@@ -1203,8 +1205,8 @@ String getTimestampTime() {
 
 // Checks if is the correct UTC time to initiate RTC-GPS synchronization
 bool validTimeToSync() {
-  // if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) { // Original (good) proposal
-  if ((myRTC.minutes == 00 || myRTC.minutes == 10 || myRTC.minutes == 20 || myRTC.minutes == 30 || myRTC.minutes == 40 || myRTC.minutes == 50) && myRTC.seconds == 00) {  // Every 10 minutes
+  if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) { // Original (good) proposal
+  // if ((myRTC.minutes == 00 || myRTC.minutes == 10 || myRTC.minutes == 20 || myRTC.minutes == 30 || myRTC.minutes == 40 || myRTC.minutes == 50) && myRTC.seconds == 00) {  // Every 10 minutes
     // if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
     return true;
   } else {
@@ -1993,6 +1995,16 @@ void m1b1action() {
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
   tft.println("Internal Temp: " + String(systemData.internalTemp) + "\367" + "C");
+
+  tft.setCursor(22, 157); // 22, 157
+  tft.setTextColor(YELLOW);
+  tft.setTextSize(1);
+  tft.println("Last transmission rcvd:");
+
+  tft.setCursor(22, 177);
+  tft.setTextColor(MARS);
+  tft.setTextSize(1);
+  tft.println(rcvdTime + " UTC");
 }
 
 void m1b2action() {
