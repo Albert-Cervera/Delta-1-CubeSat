@@ -1,7 +1,7 @@
 #include "TinyGPS++.h"
 #include "SoftwareSerial.h"
 
-SoftwareSerial ss(4, 3); //Rx=11, Tx=10
+SoftwareSerial ss(A12, A11); // Rx=11, Tx=10 // 4, 3 // MEGA: A12, A11
 TinyGPSPlus gps;
 
 void setup() {

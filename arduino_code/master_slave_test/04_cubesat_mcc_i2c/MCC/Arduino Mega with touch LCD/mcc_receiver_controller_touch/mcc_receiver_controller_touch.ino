@@ -155,12 +155,13 @@ bool enableArea = true;
 File myFile;
 char delim = ';';
 String buffer;  // For reading file line by line
+String latitude, longitude, altitude;
 
 // Create Amplitude Shift Keying Object
 // Params: speed in BPS, rxPin, txPin, pttPin
 RH_ASK rf_driver(2000, 21, 20, 0);  // <-- Receive on PIN 21 and transmit on PIN 20
 virtuabotixRTC myRTC(25, 27, 29);   // Real Time Clock
-SoftwareSerial ss(A12, A11);          // The serial connection to the GPS device: RXPin, TXPin
+SoftwareSerial ss(A12, A11);        // The serial connection to the GPS device: RXPin, TXPin
 
 unsigned long lastDataReceived;  // miliseconds with no signal from transmitter
 unsigned long currentMillis;     // current miliseconds var to compare data
@@ -353,6 +354,7 @@ void setup() {
   Serial.println("initialization done.");
   // Remove existing file.
   //  SD.remove("READTEST.TXT"); // Code that I'll never use here, but is useful to know
+  ss.begin(9600);  // initialize GPS module at GPSBaud 9600
 
 }  // end void setup()
 
@@ -446,7 +448,13 @@ void loop() {
 
 
   if (startSync) {
-    // syncGPSDateTime();  // check if SAT_B still falls asleep
+    clearMessage();
+    tft.setCursor(12, 213);
+    tft.setTextColor(YELLOW);
+    tft.setTextSize(2);
+    tft.println("Syncing RTC-GPS ...");
+    // delay(2000);
+    syncGPSDateTime();  // check if SAT_B still falls asleep
     startSync = false;
 
     // String timestamp = getTimestampTime();
@@ -577,6 +585,9 @@ void loop() {
         yled(550);
         clearMessage();
       }
+      if (page == 611) {
+        settingsb11action();
+      }
       if (page == 0) {  // if you are on the "home" page (0)
         page = 1;       // then you just went to the first page
         redraw();       // redraw the screen with the page value 1, giving you the page 1 menu
@@ -640,7 +651,9 @@ void loop() {
         yled(550);
         clearMessage();
       }
-
+      if (page == 611) {
+        settingsb12action();
+      }
       if (page == 0) {
         page = 2;
         redraw();
@@ -821,6 +834,9 @@ void loop() {
       }
       if (page == 13) {
         m13b5action();
+      }
+      if (page == 61) {
+        settingsb1action();
       }
       // No button or action there
       // if (page == 1) {
@@ -1007,7 +1023,6 @@ void loop() {
   }
 
 
-
   // delay(250);  // from MCC code (Menu test didn't had this)
   //delay(1000);  // Just for seeing the clock
 }  // end void loop()
@@ -1189,7 +1204,7 @@ String getTimestampTime() {
 // Checks if is the correct UTC time to initiate RTC-GPS synchronization
 bool validTimeToSync() {
   // if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) { // Original (good) proposal
-  if ((myRTC.minutes == 03 || myRTC.minutes == 05 || myRTC.minutes == 56 || myRTC.minutes == 57) && myRTC.seconds == 00) { // Every minute
+  if ((myRTC.minutes == 00 || myRTC.minutes == 10 || myRTC.minutes == 20 || myRTC.minutes == 30 || myRTC.minutes == 40 || myRTC.minutes == 50) && myRTC.seconds == 00) {  // Every 10 minutes
     // if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
     return true;
   } else {
@@ -1201,16 +1216,15 @@ bool validTimeToSync() {
 void syncGPSDateTime() {
   TinyGPSPlus gps;  // The TinyGPS++ object
 
-  Serial.print("\nSyncing GPS");
-
   int day, month, year, hour, minute, second;
   // String latitude, longitude, altitude;
   unsigned long startTime = millis();
   unsigned long endTime = startTime;
   bool gpsDate, gpsTime = false;
 
-  // 9 mins = 540 secs
-  while ((endTime - startTime) <= 540000) {
+  // 9 mins = 540 secs = 540000 ms
+  // 3 mins = 180 secs = 180000 ms
+  while ((endTime - startTime) <= 180000) {
     if (ss.available() > 0) {
       if (gps.encode(ss.read())) {
 
@@ -1228,24 +1242,30 @@ void syncGPSDateTime() {
           gpsTime = true;
         }
 
-        Serial.print("\nTime: ");
-        Serial.print(hour);
-        Serial.print(":");
-        Serial.print(minute);
-        Serial.print(":");
-        Serial.print(second);
+        // Serial.print("\nTime: ");
+        // Serial.print(hour);
+        // Serial.print(":");
+        // Serial.print(minute);
+        // Serial.print(":");
+        // Serial.print(second);
 
-        Serial.print(" , Date: ");
-        Serial.print(day);
-        Serial.print("/");
-        Serial.print(month);
-        Serial.print("/");
-        Serial.print(year);
+        // Serial.print(" , Date: ");
+        // Serial.print(day);
+        // Serial.print("/");
+        // Serial.print(month);
+        // Serial.print("/");
+        // Serial.print(year);
 
         if (gpsDate && gpsTime) {
           if (day > 0 && day <= 31 && month <= 12 && year == 2023) {
             // Update RTC with GPS UTC time
             myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
+            clearMessage();
+            tft.setCursor(12, 213);
+            tft.setTextColor(GREEN);
+            tft.setTextSize(2);
+            tft.println("[OK] Success");
+            delay(2000);
             break;
           }
         }
@@ -1254,7 +1274,53 @@ void syncGPSDateTime() {
     }    // end if ss.available()
 
     endTime = millis();
-  }  // end while 9 mins
+  }  // end while 3 or 9 mins
+}
+
+// Gets latitude, longitude and altitude data from GPS
+void getGPSData() {
+  TinyGPSPlus gps;  // The TinyGPS++ object
+
+  unsigned long startTime = millis();
+  unsigned long endTime = startTime;
+  // 5 mins = 300 sec
+  // 9 mins = 540 secs = 540000 ms
+  // 3 mins = 180 secs = 180000 ms
+  while ((endTime - startTime) <= 30000) {  // 30 secs
+    if (ss.available() > 0) {
+      if (gps.encode(ss.read())) {
+
+        if (gps.location.isValid()) {
+          latitude = gps.location.lat();
+          longitude = gps.location.lng();
+          // altitude = gps.altitude.meters();
+
+          // clearMessage();
+          // tft.setCursor(12, 213);
+          // tft.setTextColor(GREEN);
+          // tft.setTextSize(2);
+          // tft.println("[OK] Success");
+          // delay(2000);
+
+          // break;
+
+          if (gps.altitude.meters() != 0.0) {
+            // writeFile(6, "GPSSYNC.txt");
+            altitude = gps.altitude.meters();
+            clearMessage();
+            tft.setCursor(12, 213);
+            tft.setTextColor(GREEN);
+            tft.setTextSize(2);
+            tft.println("[OK] Success");
+            delay(2000);
+            break;
+          }
+        }
+      }
+    }
+
+    endTime = millis();
+  }
 }
 
 // *****************************************************************************
@@ -1587,6 +1653,9 @@ void menu5() {
 }
 
 void settingsScr() {
+
+  page = 61;
+
   // backlight level
   tft.fillRect(0, 20, 60, 50, RED);
   tft.drawRect(0, 20, 60, 50, WHITE);
@@ -1632,6 +1701,12 @@ void settingsScr() {
   tft.setTextSize(3);
   tft.println("+");
   showSleep();
+
+  tft.drawRect(0, 140, 150, 50, JJCOLOR);
+  tft.setCursor(41, 157);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("RTC-GPS");
 
   //?? uncomment this if you want a third adjustable option
   /*
@@ -1945,6 +2020,81 @@ void m1b2action() {
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
   tft.println("Del Data");
+}
+
+void settingsb1action() {
+  page = 611;
+  clearCenter();
+  boxes(2);
+
+  clearMessageStatusBar();
+  tft.setCursor(1, 1);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(1);
+  tft.println("RTC-GPS");
+
+  tft.setCursor(22, 37);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Sync RTC");
+
+  tft.setCursor(192, 37);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("GPS data");
+}
+
+void settingsb11action() {
+  clearCenter();
+  enableArea = false;
+  clearMessage();
+
+  tft.setCursor(12, 213);
+  tft.setTextColor(YELLOW);
+  tft.setTextSize(2);
+  tft.println("Syncing RTC-GPS ...");
+
+  syncGPSDateTime();
+
+  String time = getTimestampTime();
+
+  tft.setCursor(22, 37);
+  tft.setTextColor(GREEN);
+  tft.setTextSize(2);
+  tft.println("Mission Clock synced at:");
+
+  tft.setCursor(22, 77);
+  tft.setTextColor(MARS);
+  tft.setTextSize(2);
+  tft.println(time + " UTC");
+}
+
+void settingsb12action() {
+  clearCenter();
+  enableArea = false;
+  clearMessage();
+
+  tft.setCursor(12, 213);
+  tft.setTextColor(YELLOW);
+  tft.setTextSize(2);
+  tft.println("RCV GPS data ...");
+
+  getGPSData();
+
+  tft.setCursor(22, 37);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Latitude: " + latitude + "\367");
+
+  tft.setCursor(22, 77);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Longitude: " + longitude + "\367");
+
+  tft.setCursor(22, 117);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Altitude: " + altitude + " m");
 }
 
 void m1b3action() {
@@ -2556,7 +2706,6 @@ void drawClock(String time) {
   tft.setTextSize(2);
   tft.println("UTC");
 }
-
 
 void plotGraph(int type, bool esm) {
   // 1:barometer, 2: temperature
