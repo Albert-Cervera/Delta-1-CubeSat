@@ -455,17 +455,14 @@ void loop() {
     tft.setTextColor(YELLOW);
     tft.setTextSize(2);
     tft.println("Syncing RTC-GPS ...");
-    // delay(2000);
-    syncGPSDateTime();  // check if SAT_B still falls asleep
+    syncGPSDateTime(true); // Strict Mode
     startSync = false;
 
     // String timestamp = getTimestampTime();
     // Serial.print("\n" + timestamp);
 
     // String timestampDate = getTimestampDate();
-    // Serial.print(", " + timestampDate);
-
-    // getGPSData();
+    // Serial.print(", " + timestampDate);    
   }
 
   // UI configuration ------------------------------------------------------------
@@ -1205,8 +1202,8 @@ String getTimestampTime() {
 
 // Checks if is the correct UTC time to initiate RTC-GPS synchronization
 bool validTimeToSync() {
-  if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) { // Original (good) proposal
-  // if ((myRTC.minutes == 00 || myRTC.minutes == 10 || myRTC.minutes == 20 || myRTC.minutes == 30 || myRTC.minutes == 40 || myRTC.minutes == 50) && myRTC.seconds == 00) {  // Every 10 minutes
+  if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) {  // Original (good) proposal
+  // if ((myRTC.minutes == 37 || myRTC.minutes == 10 || myRTC.minutes == 20 || myRTC.minutes == 30 || myRTC.minutes == 40 || myRTC.minutes == 50) && myRTC.seconds == 00) {  // Every 10 minutes
     // if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
     return true;
   } else {
@@ -1215,7 +1212,7 @@ bool validTimeToSync() {
 }
 
 // Gets UTC time via GPS and syncs RTC
-void syncGPSDateTime() {
+void syncGPSDateTime(bool strictMode) {
   TinyGPSPlus gps;  // The TinyGPS++ object
 
   int day, month, year, hour, minute, second;
@@ -1230,47 +1227,75 @@ void syncGPSDateTime() {
     if (ss.available() > 0) {
       if (gps.encode(ss.read())) {
 
-        if (gps.date.isValid()) {
-          day = gps.date.day();
-          month = gps.date.month();
-          year = gps.date.year();
-          gpsDate = true;
-        }
+        if (strictMode) {
 
-        if (gps.time.isValid()) {
-          hour = gps.time.hour();
-          minute = gps.time.minute();
-          second = gps.time.second();
-          gpsTime = true;
-        }
+          // Strict Mode: Requires a fixed location to sync time
+          if (gps.location.isValid()) {
 
-        // Serial.print("\nTime: ");
-        // Serial.print(hour);
-        // Serial.print(":");
-        // Serial.print(minute);
-        // Serial.print(":");
-        // Serial.print(second);
+            if (gps.date.isValid()) {
+              day = gps.date.day();
+              month = gps.date.month();
+              year = gps.date.year();
+              gpsDate = true;
+            }
 
-        // Serial.print(" , Date: ");
-        // Serial.print(day);
-        // Serial.print("/");
-        // Serial.print(month);
-        // Serial.print("/");
-        // Serial.print(year);
+            if (gps.time.isValid()) {
+              hour = gps.time.hour();
+              minute = gps.time.minute();
+              second = gps.time.second();
+              gpsTime = true;
+            }
 
-        if (gpsDate && gpsTime) {
-          if (day > 0 && day <= 31 && month <= 12 && year == 2023) {
-            // Update RTC with GPS UTC time
-            myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
-            clearMessage();
-            tft.setCursor(12, 213);
-            tft.setTextColor(GREEN);
-            tft.setTextSize(2);
-            tft.println("[OK] Success");
-            delay(2000);
-            break;
+            if (gpsDate && gpsTime) {
+              if (day > 0 && day <= 31 && month <= 12 && year >= 2023) {
+                // Update RTC with GPS UTC time
+                myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
+                clearMessage();
+                tft.setCursor(12, 213);
+                tft.setTextColor(GREEN);
+                tft.setTextSize(2);
+                tft.println("[OK] Success (SM)");
+                delay(2000);
+                break;
+              }
+            }
+
+          }  // End if location
+
+        } else {
+
+          // Loose Mode: Syncs with whatever value Satellites provides
+          if (gps.date.isValid()) {
+            day = gps.date.day();
+            month = gps.date.month();
+            year = gps.date.year();
+            gpsDate = true;
           }
-        }
+
+          if (gps.time.isValid()) {
+            hour = gps.time.hour();
+            minute = gps.time.minute();
+            second = gps.time.second();
+            gpsTime = true;
+          }
+
+
+          if (gpsDate && gpsTime) {
+            if (day > 0 && day <= 31 && month <= 12 && year >= 2023) {
+              // Update RTC with GPS UTC time
+              myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
+              clearMessage();
+              tft.setCursor(12, 213);
+              tft.setTextColor(GREEN);
+              tft.setTextSize(2);
+              tft.println("[OK] Success (LM)");
+              delay(2000);
+              break;
+            }
+          }
+        } // End else
+
+
 
       }  // end if gps.encode(ss.read())
     }    // end if ss.available()
@@ -1295,16 +1320,6 @@ void getGPSData() {
         if (gps.location.isValid()) {
           latitude = gps.location.lat();
           longitude = gps.location.lng();
-          // altitude = gps.altitude.meters();
-
-          // clearMessage();
-          // tft.setCursor(12, 213);
-          // tft.setTextColor(GREEN);
-          // tft.setTextSize(2);
-          // tft.println("[OK] Success");
-          // delay(2000);
-
-          // break;
 
           if (gps.altitude.meters() != 0.0) {
             // writeFile(6, "GPSSYNC.txt");
@@ -1996,7 +2011,7 @@ void m1b1action() {
   tft.setTextSize(2);
   tft.println("Internal Temp: " + String(systemData.internalTemp) + "\367" + "C");
 
-  tft.setCursor(22, 157); // 22, 157
+  tft.setCursor(22, 157);  // 22, 157
   tft.setTextColor(YELLOW);
   tft.setTextSize(1);
   tft.println("Last transmission rcvd:");
@@ -2066,9 +2081,10 @@ void settingsb11action() {
   tft.setTextSize(2);
   tft.println("Syncing RTC-GPS ...");
 
-  syncGPSDateTime();
+  syncGPSDateTime(false); // Lose Mode
 
   String time = getTimestampTime();
+  String date = getTimestampDate();
 
   tft.setCursor(22, 37);
   tft.setTextColor(GREEN);
@@ -2079,6 +2095,11 @@ void settingsb11action() {
   tft.setTextColor(MARS);
   tft.setTextSize(2);
   tft.println(time + " UTC");
+
+  tft.setCursor(22, 117);
+  tft.setTextColor(MARS);
+  tft.setTextSize(2);
+  tft.println(date);
 }
 
 void settingsb12action() {
