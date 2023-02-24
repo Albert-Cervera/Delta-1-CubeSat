@@ -167,7 +167,12 @@ unsigned long lastDataReceived;  // miliseconds with no signal from transmitter
 unsigned long currentMillis;     // current miliseconds var to compare data
 String referenceTime;            // Time reference for updating mission clock on screen
 String rcvdTime;                 // Time reference for last time a signal was received from CubeSat
-bool startSync = false;          // For RTC-GPS sync
+int lastSecondSavedTel, lastMinuteSavedTel;
+int lastSecondSavedSys, lastMinuteSavedSys;
+int lastHourSavedHTel;
+int lastMinuteSavedESMTel;
+
+bool startSync = false;  // For RTC-GPS sync
 bool rcvdTx;
 uint32_t losTolerance = 630000;  // 630000, Loss of Signal tolerance in ms //630 sec = 10 min, 30 sec
 float heatIndex;
@@ -422,6 +427,60 @@ void loop() {
     //   losTolerance = 5000;
     // }
 
+    myRTC.updateTime();
+    bool validToSave;
+    bool validToSaveESM;
+
+    // Save data every hour at minute 30 giving 40 secs tolerance
+    if (myRTC.hours != lastHourSavedHTel && myRTC.minutes == 30 && (myRTC.seconds >= 0 && myRTC.seconds <= 40)) {  // Giving 40 seconds tolerance
+      lastHourSavedHTel = myRTC.hours;
+      validToSave = true;
+    } else {
+      validToSave = false;
+    }
+
+    if (validToSave) {
+      Serial.print("\n[OK] Saving hourly data into SD ...");
+      writeToSD(6);  // Save telemetry data every hour (regardless of CubeSat mode)
+      writeToSD(7);  // Save system data every hour (regardless of CubeSat mode)
+      validToSave = false;
+    }
+
+    // Save ESM data every 10 minutes giving 40 secs tolerance
+    if (myRTC.minutes != lastMinuteSavedESMTel && (myRTC.seconds >= 0 && myRTC.seconds <= 40)) {  // Giving 40 seconds tolerance
+      lastMinuteSavedESMTel = myRTC.minutes;
+      validToSaveESM = true;
+    } else {
+      validToSaveESM = false;
+    }
+
+    // Modes -> 0: Safe Mode, 1: ESM, 2: RTW, 3: RTI, 4: RTWI
+    switch (systemData.mode) {
+      case 0:
+        writeToSD(3);  // Safe mode: SUDO save system data
+        break;
+      case 1:
+        // Serial.print("\nSaving ESM data into SD ...");
+        if (validToSaveESM) {
+          writeToSD(4);  // ESM mode: save telemetry data
+          writeToSD(5);  // ESM mode: save system data
+        }
+        break;
+      case 2:
+        writeToSD(1);  // Save RTWI telemetry data: Checking validTime
+        writeToSD(2);  // Save RT system data: Checking validTime
+        break;
+      case 3:
+        writeToSD(1);  // Save RTWI telemetry data: Checking validTime
+        writeToSD(2);  // Save RT system data: Checking validTime
+        break;
+      case 4:
+        // Serial.print("\nSaving RTWI data into SD ...");
+        writeToSD(1);  // Save RTWI telemetry data: Checking validTime
+        writeToSD(2);  // Save RT system data: Checking validTime
+        break;
+    }
+
     // sendDataI2C(); // Send telemetryData via I2C to peripheral slave
 
   } else if ((rf_driver.recv(buf, &buflen) == 0)) {
@@ -455,14 +514,14 @@ void loop() {
     tft.setTextColor(YELLOW);
     tft.setTextSize(2);
     tft.println("Syncing RTC-GPS ...");
-    syncGPSDateTime(true); // Strict Mode
+    syncGPSDateTime(true);  // Strict Mode
     startSync = false;
 
     // String timestamp = getTimestampTime();
     // Serial.print("\n" + timestamp);
 
     // String timestampDate = getTimestampDate();
-    // Serial.print(", " + timestampDate);    
+    // Serial.print(", " + timestampDate);
   }
 
   // UI configuration ------------------------------------------------------------
@@ -520,10 +579,10 @@ void loop() {
     p.y = map(p.y, TS_MINY, TS_MAXY, tft.height(), 0);
 
 
-    Serial.print("p.y:");  // this code will help you get the y and x numbers for the touchscreen
-    Serial.print(p.y);
-    Serial.print("   p.x:");
-    Serial.println(p.x);
+    // Serial.print("p.y:");  // this code will help you get the y and x numbers for the touchscreen
+    // Serial.print(p.y);
+    // Serial.print("   p.x:");
+    // Serial.println(p.x);
 
     // area 1 [calibrated]
     if (p.y > 170 && p.y < 320 && p.x > 173 && p.x < 216 && enableArea) {  // if this area is pressed
@@ -1203,7 +1262,7 @@ String getTimestampTime() {
 // Checks if is the correct UTC time to initiate RTC-GPS synchronization
 bool validTimeToSync() {
   if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) {  // Original (good) proposal
-  // if ((myRTC.minutes == 37 || myRTC.minutes == 10 || myRTC.minutes == 20 || myRTC.minutes == 30 || myRTC.minutes == 40 || myRTC.minutes == 50) && myRTC.seconds == 00) {  // Every 10 minutes
+                                                                                                                    // if ((myRTC.minutes == 37 || myRTC.minutes == 10 || myRTC.minutes == 20 || myRTC.minutes == 30 || myRTC.minutes == 40 || myRTC.minutes == 50) && myRTC.seconds == 00) {  // Every 10 minutes
     // if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
     return true;
   } else {
@@ -1293,7 +1352,7 @@ void syncGPSDateTime(bool strictMode) {
               break;
             }
           }
-        } // End else
+        }  // End else
 
 
 
@@ -1339,6 +1398,145 @@ void getGPSData() {
     endTime = millis();
   }
 }
+
+/*
+
+// 28 bytes size and 7 elements (4 bytes each(?))
+struct telemetryStruct {
+  float humidity;
+  float temperature;
+  float pressure;
+  float localAltitude;  // altitude in meters from ground
+  float pitch;
+  float roll;
+  float yaw;
+} telemetryData;
+
+// 6 bytes size and 2 elements (3 bytes each(?))
+struct dataStruct {
+  int mode;
+  float voltage;
+  float internalTemp;  // dedicated temperature DSB18B20 sensor
+  // float solarCurrent; // Future val: current generated by solar arrays
+} systemData
+
+*/
+
+// This assumes constant querying to RTC to know exact time so we don't miss second 0 of each hour.
+// Flag 1 for telemetry and 2 for system data.
+bool validTimeToSave(int flag) {
+  myRTC.updateTime();
+
+  switch (flag) {
+    case 1:
+      if (myRTC.seconds == lastSecondSavedTel && myRTC.minutes == lastMinuteSavedTel) {
+        return false;
+      }
+      break;
+    case 2:
+      if (myRTC.seconds == lastSecondSavedSys && myRTC.minutes == lastMinuteSavedSys) {
+        return false;
+      }
+      break;
+  }
+
+  // if (myRTC.seconds == 0) {  // saves every minute
+  // Saves every 5 seconds
+  if (myRTC.seconds == 0 || myRTC.seconds == 5 || myRTC.seconds == 10 || myRTC.seconds == 15 || myRTC.seconds == 20 || myRTC.seconds == 25 || myRTC.seconds == 30 || myRTC.seconds == 35 || myRTC.seconds == 40 || myRTC.seconds == 45 || myRTC.seconds == 50 || myRTC.seconds == 55) {
+    return true;
+  }
+
+  return false;
+}
+
+// TODO: Add function that creates a new txt file when date.month changes.
+void writeToSD(int flag) {
+  // Just one file can be open at a time, make sure to close it after writing.
+  switch (flag) {
+    case 1:  // Save RTWI telemetry data: Checking validTime
+      if (validTimeToSave(1)) {
+        writeFile(1, "2_RTWI/RTWITEL.txt");
+      }
+      break;
+    case 2:  // Save RT system data: Checking validTime
+      if (validTimeToSave(2)) {
+        writeFile(2, "2_RTWI/RTSYS.txt");
+      }
+      break;
+    case 3:  // Safe mode: SUDO save system data
+      writeFile(3, "0_SM/SMSYS.txt");
+      break;
+    case 4:  // ESM mode: SUDO save telemetry data: Don't check validTime
+      writeFile(4, "1_ESM/ESMTEL.txt");
+      break;
+    case 5:  // ESM mode: SUDO save system data: Don't check validTime
+      writeFile(5, "1_ESM/ESMSYS.txt");
+      break;
+    case 6:  // SUDO Save telemetry data every hour (regardless of CubeSat mode)
+      writeFile(6, "3_HOUR/HTEL.txt");
+      break;
+    case 7:  // SUDO Save system data every hour (regardless of CubeSat mode)
+      writeFile(7, "3_HOUR/HSYS.txt");
+      break;
+  }
+}
+
+void writeFile(int flag, String fileName) {
+  File myFile;
+  String time = getTimestampTime();
+  String date = getTimestampDate();
+  myFile = SD.open(fileName, FILE_WRITE);
+
+  // Add modes 1 and 3 for saving telemetry data. 1: data every x time, 3: always save data
+  // Add modes 2 and 4 for saving system data. 2: data every x time, 4: always save data
+  if (flag == 1 || flag == 4 || flag == 6) {  // Save telemetry data
+    if (myFile) {
+      myFile.print(time + ",");
+      myFile.print(date + ",");
+      myFile.print(String(telemetryData.humidity) + ",");
+      myFile.print(String(telemetryData.temperature) + ",");
+      myFile.print(String(telemetryData.pressure) + ",");
+      myFile.print(String(telemetryData.localAltitude) + ",");
+      myFile.print(String(telemetryData.pitch) + ",");
+      myFile.print(String(telemetryData.roll) + ",");
+      myFile.print(String(telemetryData.yaw));
+      myFile.print("\n");
+
+      myFile.close();
+
+      if (flag == 1) {
+        lastSecondSavedTel = myRTC.seconds;
+        lastMinuteSavedTel = myRTC.minutes;
+      }
+
+    } else {
+      // TODO: consider trying to initialize the sd card again
+      Serial.print("\nERR txt 1-4-6");
+    }
+  } else if (flag == 2 || flag == 3 || flag == 5 || flag == 7) {  //save system data
+    if (myFile) {
+
+      myFile.print(time + ",");
+      myFile.print(date + ",");
+      myFile.print(String(int(systemData.mode)) + ",");
+      myFile.print(String(systemData.voltage) + ",");
+      myFile.print(String(systemData.internalTemp));
+      myFile.print("\n");
+
+      myFile.close();
+
+      if (flag == 2) {
+        lastSecondSavedTel = myRTC.seconds;
+        lastMinuteSavedTel = myRTC.minutes;
+      }
+
+    } else {
+      // TODO: consider trying to initialize the sd card again
+      Serial.print("\nERR txt 2-3-5-7");
+    }
+  }
+}
+
 
 // *****************************************************************************
 // GUI internal functions ******************************************************
@@ -2081,7 +2279,7 @@ void settingsb11action() {
   tft.setTextSize(2);
   tft.println("Syncing RTC-GPS ...");
 
-  syncGPSDateTime(false); // Lose Mode
+  syncGPSDateTime(false);  // Lose Mode
 
   String time = getTimestampTime();
   String date = getTimestampDate();
@@ -2885,7 +3083,7 @@ void plotData(int dataPoints[], int dataLength, int minVal, int maxVal) {
     int valab = map(val, fromLow, fromHigh, toLow, toHigh);  // Map pressure value to a pixel number (between 15 ( = 1024 ) and 159 ( = 0 )) that represent the progress on the Y axis.
     // Idea for some other time: map the int part of val, map the decimal part, and add them together
 
-    Serial.print("\nMapped pixel: " + String(valab));
+    // Serial.print("\nMapped pixel: " + String(valab));
     mappedPixels[i] = valab;
 
     tft.fillCircle(incrementation, valab, 1, CYAN);  // x0：x coordinate of the center point , y0：y coordinate of the center point, r：radius of the circle, color：teh color of the circle
@@ -2965,12 +3163,15 @@ void readData() {
 
 
   // open the file for reading:
-  String filePath = "24_HOUR/ESM24.txt";  // "ESM24.txt";
+  String filePath = "3_HOUR/HTEL.txt";
+  // String filePath = "24_HOUR/ESM24.txt";
   // String filePath = "72_HOUR/1_ESM/ESMTEL.txt";
 
 
   myFile = SD.open(filePath);
   // If we were to write something, then: myFile = SD.open("test.txt", FILE_WRITE);
+  int lineCount = 0;
+  int lineCount2 = 0;
 
   if (myFile) {
     Serial.println("Reading " + filePath + ": ");
@@ -2978,18 +3179,44 @@ void readData() {
     // Rewind the file for read.
     // Seeks to a new position in the file, between 0 and size of file (inclusive)
     myFile.seek(68);  // Consider that the frist row is for column names, hence I need to move to first real data index. POS: 68
+    // Serial.print("\nPosition after seek(): " + String(myFile.position()));  // 68
 
     int dataPoints[12];  // '12' to have 24 slots in array Rounded data points from sensor (like pressure)
     int minVal = 3000;   // an amount of hPa that could never be true
     int maxVal = 0;
     int counter = 0;
 
+    // get the line count and then read the last lineCount - 25 to plot the 24h graph
+
+    while (myFile.available()) {
+      myFile.readStringUntil('\n');
+      lineCount += 1;
+    }
+    // Serial.println("\nlineCount: " + String(lineCount));
+
+    myFile.seek(68);  // Reset initial position
+    unsigned long desiredPosition;
+    while (myFile.available()) {
+      myFile.readStringUntil('\n');
+      lineCount2 += 1;
+
+      if (lineCount2 == lineCount - 25) {  // Warning: could fail if there are 0 registers
+        // Get index, position, etc
+        // Serial.print("\nlineCount2: " + String(lineCount2));
+        desiredPosition = myFile.position();
+        break;
+      }
+    }
+
+    // Serial.println("\ndesiredPosition: " + String(desiredPosition));
+
+    myFile.seek(desiredPosition);
     while (myFile.available()) {
 
       buffer = myFile.readStringUntil('\n');
       // Serial.println(buffer);
 
-      String pressure = getValue(buffer, ',', 4);  // 4 for pressure // time,date,humidity,temperature,pressure,localAltitude,pitch,roll,yaw
+      String pressure = getValue(buffer, ',', 4);  // 4th position for pressure // time,date,humidity,temperature,pressure,localAltitude,pitch,roll,yaw
       Serial.print("\n-----------------\n");
       Serial.println(pressure);
       int val = round(pressure.toFloat());
@@ -3014,8 +3241,8 @@ void readData() {
     }                // end of while
     myFile.close();  // close the file
 
-    Serial.print("\nminVal: " + String(minVal));
-    Serial.print("\nmaxVal: " + String(maxVal));
+    // Serial.print("\nminVal: " + String(minVal));
+    // Serial.print("\nmaxVal: " + String(maxVal));
 
     plotData(dataPoints, sizeof(dataPoints), minVal, maxVal);  // <-- Plotting actual data points
 
