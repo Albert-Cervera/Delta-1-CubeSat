@@ -608,12 +608,12 @@ void loop() {
         clearMessage();
       }
       if (page == 3) {
-        m3b1action();
+        graphAction(6);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
-        tft.println("Menu 3 B1");
+        tft.println("Plotting ...");
         yled(550);
         clearMessage();
       }
@@ -674,12 +674,12 @@ void loop() {
         clearMessage();
       }
       if (page == 3) {
-        m3b2action();
+        graphAction(5);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
-        tft.println("Menu 3 B2");
+        tft.println("Plotting ...");
         yled(550);
         clearMessage();
       }
@@ -739,12 +739,12 @@ void loop() {
         clearMessage();
       }
       if (page == 3) {
-        m3b3action();
+        graphAction(7);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
-        tft.println("Menu 3 B3");
+        tft.println("Plotting ...");
         yled(550);
         clearMessage();
       }
@@ -850,7 +850,7 @@ void loop() {
       //   clearMessage();
       // }
       if (page == 44) {
-        graphAction(4);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude
+        graphAction(4);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
@@ -860,7 +860,7 @@ void loop() {
         clearMessage();
       }
       if (page == 43) {
-        graphAction(1);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude
+        graphAction(1);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
@@ -870,7 +870,7 @@ void loop() {
         clearMessage();
       }
       if (page == 41) {
-        graphAction(2);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude
+        graphAction(2);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
@@ -943,7 +943,7 @@ void loop() {
       //   clearMessage();
       // }
       if (page == 41) {
-        graphAction(3);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude
+        graphAction(3);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
@@ -1753,7 +1753,7 @@ void menu2() {
 }
 
 void menu3() {
-  boxes(4);
+  boxes(3);
 
   clearMessageStatusBar();
   tft.setCursor(1, 1);
@@ -1766,7 +1766,7 @@ void menu3() {
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
   // tft.println("Menu 3 B1");
-  tft.println("Batt Stat");
+  tft.println("SC Mode");
 
   tft.setCursor(192, 37);
   tft.setTextColor(WHITE);
@@ -1776,12 +1776,12 @@ void menu3() {
   tft.setCursor(22, 97);
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
-  tft.println("Batt Graph");
+  tft.println("Voltage");
 
-  tft.setCursor(192, 97);
-  tft.setTextColor(WHITE);
-  tft.setTextSize(2);
-  tft.println("Temp Graph");
+  // tft.setCursor(192, 97);
+  // tft.setTextColor(WHITE);
+  // tft.setTextSize(2);
+  // tft.println("Temp Graph");
 
   // tft.setCursor(22, 157);
   // tft.setTextColor(WHITE);
@@ -2475,7 +2475,7 @@ void graphAction(int type) {
   clearCenter();
   enableArea = false;
 
-  plotGraph(type);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude
+  plotGraph(type);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
 }
 
 void m4b4action() {
@@ -2955,7 +2955,7 @@ void drawClock(String time) {
 }
 
 void plotGraph(int type) {
-  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude
+  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
   // true: ESM, false:RTWI
 
   /*
@@ -3024,6 +3024,15 @@ void plotGraph(int type) {
       break;
     case 4:
       tft.println("Local Altitude");
+      break;
+    case 5:
+      tft.println("Spacecraft internal temperature");
+      break;
+    case 6:
+      tft.println("Spacecraft OBC mode");
+      break;
+    case 7:
+      tft.println("Spacecraft voltage");
       break;
   }
 
@@ -3191,10 +3200,13 @@ void readData(int type) {
   */
 
 
-  // open the file for reading:
-  String filePath = "3_HOUR/HTEL.txt";
-  // String filePath = "24_HOUR/ESM24.txt";
-  // String filePath = "72_HOUR/1_ESM/ESMTEL.txt";
+  // Open the file for reading:
+  String filePath;
+  if (type <= 4) {
+    filePath = "3_HOUR/HTEL.txt";
+  } else {
+    filePath = "3_HOUR/HSYS.txt";
+  }
 
   int lineCount = 0;
   int lineCount2 = 0;
@@ -3233,6 +3245,8 @@ void readData(int type) {
 
     // Serial.println("\ndesiredPosition: " + String(desiredPosition));
 
+    // HTEL txt: time,date,humidity,temperature,pressure,localAltitude,pitch,roll,yaw
+    // HSYS txt: time,date,mode,voltage,internalTemp
     int stringPos;
     switch (type) {
       case 1:
@@ -3246,6 +3260,15 @@ void readData(int type) {
         break;
       case 4:
         stringPos = 5;  // localAltitude
+        break;
+      case 5:
+        stringPos = 4;  // internalTemp
+        break;
+      case 6:
+        stringPos = 2;  // mode
+        break;
+      case 7:
+        stringPos = 3;  // voltage
         break;
     }
 
@@ -3263,7 +3286,7 @@ void readData(int type) {
       buffer = myFile.readStringUntil('\n');
       // Serial.println(buffer);
 
-      String dataValue = getValue(buffer, ',', stringPos);  // 4th position for pressure, 3rd for temperature // time,date,humidity,temperature,pressure,localAltitude,pitch,roll,yaw
+      String dataValue = getValue(buffer, ',', stringPos);
       Serial.print("\n-----------------\n");
       Serial.println(dataValue);
       int val = round(dataValue.toFloat());
