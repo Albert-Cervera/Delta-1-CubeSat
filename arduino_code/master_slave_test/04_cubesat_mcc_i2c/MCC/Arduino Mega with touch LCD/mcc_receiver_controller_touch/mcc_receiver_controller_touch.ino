@@ -1291,7 +1291,7 @@ String getTimestampTime() {
 
 // Checks if is the correct UTC time to initiate RTC-GPS synchronization
 bool validTimeToSync() {
-  if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) {  // Original (good) proposal
+  if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 01) {  // Original (good) proposal
                                                                                                                     // if ((myRTC.minutes == 37 || myRTC.minutes == 10 || myRTC.minutes == 20 || myRTC.minutes == 30 || myRTC.minutes == 40 || myRTC.minutes == 50) && myRTC.seconds == 00) {  // Every 10 minutes
     // if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
     return true;
@@ -3202,25 +3202,27 @@ void readData(int type) {
 
   // Open the file for reading:
   String filePath;
+  int headerOffset;  // To skip the first N characters of just the header
   if (type <= 4) {
     filePath = "3_HOUR/HTEL.txt";
+    headerOffset = 68;
   } else {
     filePath = "3_HOUR/HSYS.txt";
+    headerOffset = 35;
   }
 
   int lineCount = 0;
   int lineCount2 = 0;
 
   myFile = SD.open(filePath);
-  // If we were to write something, then: myFile = SD.open("test.txt", FILE_WRITE);
 
   if (myFile) {
     Serial.println("\nReading " + filePath + ": ");
 
     // Rewind the file for read.
     // Seeks to a new position in the file, between 0 and size of file (inclusive)
-    myFile.seek(68);  // Consider that the frist row is for column names, hence I need to move to first real data index. POS: 68
-    // Serial.print("\nPosition after seek(): " + String(myFile.position()));  // 68
+    myFile.seek(headerOffset);  // Consider that the frist row is for column names, hence I need to move to first real data index. POS: 68
+    // Serial.print("\nPosition after seek(): " + String(myFile.position()));
 
     // Get the line count and then read the last lineCount - 25 to plot the 24h graph
     while (myFile.available()) {
@@ -3229,15 +3231,13 @@ void readData(int type) {
     }
     // Serial.println("\nlineCount: " + String(lineCount));
 
-    myFile.seek(68);  // Reset initial position
+    myFile.seek(headerOffset);  // Reset initial position
     unsigned long desiredPosition;
     while (myFile.available()) {
       myFile.readStringUntil('\n');
       lineCount2 += 1;
 
       if (lineCount2 == lineCount - 25) {  // Warning: could fail if there are 0 registers // lineCount - 25
-        // Get index, position, etc
-        // Serial.print("\nlineCount2: " + String(lineCount2));
         desiredPosition = myFile.position();
         break;
       }
@@ -3274,7 +3274,7 @@ void readData(int type) {
 
     Serial.print("\nstringPos: " + String(stringPos));
 
-    int dataPoints[25];  // '12' to have 24 slots in array Rounded data points from sensor (like pressure)
+    int dataPoints[25];  // '12' to have 24 slots in array Rounded data points from sensor (like pressure), 25 to have 50, and multiple plots
     int minVal = 3000;   // an amount of hPa that could never be true
     int maxVal = 0;
     int counter = 0;
