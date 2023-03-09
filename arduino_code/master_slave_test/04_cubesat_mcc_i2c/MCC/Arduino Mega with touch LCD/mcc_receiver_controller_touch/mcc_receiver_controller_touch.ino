@@ -48,6 +48,7 @@
 #include <virtuabotixRTC.h>
 #include <TinyGPS++.h>
 #include <SoftwareSerial.h>  // Also for GPS ()
+#include <TimeLib.h>         // To compute date differences
 
 // *****************************************************************************
 // Touchscreen configuration ***************************************************
@@ -173,6 +174,7 @@ int lastHourSavedHTel;
 int lastMinuteSavedESMTel;
 
 bool startSync = false;  // For RTC-GPS sync
+bool synced = false;
 bool rcvdTx;
 uint32_t losTolerance = 630000;  // 630000, Loss of Signal tolerance in ms //630 sec = 10 min, 30 sec
 float heatIndex;
@@ -508,7 +510,7 @@ void loop() {
   }
 
 
-  if (startSync) {
+  if (startSync == true) {
     clearMessage();
     tft.setCursor(12, 213);
     tft.setTextColor(YELLOW);
@@ -926,6 +928,16 @@ void loop() {
       //   yled(550);
       //   clearMessage();
       // }
+      if (page == 1) {
+        m1b5action();
+        clearMessage();
+        tft.setCursor(12, 213);
+        tft.setTextColor(RED);
+        tft.setTextSize(2);
+        tft.println("MET");
+        yled(550);
+        clearMessage();
+      }
       if (page == 0) {
         page = 5;
         redraw();
@@ -1289,13 +1301,112 @@ String getTimestampTime() {
   return setTwoDigits(myRTC.hours) + ":" + setTwoDigits(myRTC.minutes) + ":" + setTwoDigits(myRTC.seconds);
 }
 
+String getMissionElapsedTime() {
+  // Hardcode launch timestamp
+  // Juno orbital arrive: July 4th 2016
+  // Juno was launched atop the Atlas V at Cape Canaveral Air Force Station (CCAFS), Florida on August 5, 2011, 16:25:00 UTC.
+  // That's 4380 days = 11 years, 11 months, 28 days to August 2, 2023
+  // That's 4381 days = 11 years, 11 months, 28 days to August 3, 2023
+  // Or 11 years, 11 months, 30 days excluding the end date Aug. 4th 2023 (4382 days)
+  // Or 12 years excluding the end date Aug. 5th 2023
+
+  // Juno launch:
+  // uint8_t launchDay = 5;
+  // uint8_t launchMonth = 8;
+  // int launchYear = 2011;
+  // uint8_t launchHour = 16;
+  // uint8_t launchMinute = 25;
+  // uint8_t launchSecond = 0;
+
+  // Juno orbit insertion:
+  // uint8_t launchDay = 4;
+  // uint8_t launchMonth = 7;
+  // int launchYear = 2016;
+  // uint8_t launchHour = 16;
+  // uint8_t launchMinute = 25;
+  // uint8_t launchSecond = 0;
+
+  // Voyager: 
+  uint8_t launchDay = 5;
+  uint8_t launchMonth = 9;
+  int launchYear = 1977;
+  uint8_t launchHour = 12;
+  uint8_t launchMinute = 56;
+  uint8_t launchSecond = 0;
+
+  myRTC.updateTime();
+  // Compute YRS, MOS, DAYS, HRS MINS & SECS passed from current timestamp
+
+
+  // String metSeconds;
+  // String metMinutes;
+  // String metHours = myRTC.hours - launchHour  // 19 - 16 = 3 hrs difference // 1 - 16 = -15 [!!!] Wrong, makes no sense, it should increase a day instead
+
+ // 16:25:00 5th August 2011 // Today 
+ // Wolgram: days from august 5 2011 to august 4 2023 =  11 years 11 months 30 days
+
+  // tmElements_t time1 = { launchHour, launchMinute, launchSecond, 0, launchDay, launchMonth, CalendarYrToTm(launchYear) }, time2 = { 16, 25, 0, 0, 4, 8, CalendarYrToTm(myRTC.year) }; // time2 = { myRTC.hours, myRTC.minutes, myRTC.seconds, 0, 4, 8, CalendarYrToTm(myRTC.year) };
+  tmElements_t time1 = { launchHour, launchMinute, launchSecond, 0, launchDay, launchMonth, CalendarYrToTm(launchYear) }, time2 = { myRTC.hours, myRTC.minutes, myRTC.seconds, 0, myRTC.dayofmonth, myRTC.month, CalendarYrToTm(myRTC.year) };
+
+  uint32_t difference = (uint32_t)(makeTime(time2) - makeTime(time1));
+
+  struct elapsedTime_t {
+    uint8_t Seconds, Minutes, Hours;
+    uint16_t Days;
+  } elapsedTime;
+
+  elapsedTime.Seconds = difference % 60;
+  difference /= 60;  // now it is minutes
+
+  elapsedTime.Minutes = difference % 60;
+  difference /= 60;  // now it is hours
+
+  elapsedTime.Hours = difference % 24;
+  difference /= 24;  // now it is days
+
+  elapsedTime.Days = difference; // 4384 days
+
+  double metYears = difference * 0.0027379; //4383 days = 12.0002157 years, 4382 days = 11.9974778 years, 16621 days = 45.5066359 years
+
+  double metDays =  (  ( (metYears - floor(metYears) ) * pow(10,3)) /1000 )     * 365.2425; // 0.5066359 x 365.2425 = 185.044962706 days
+  double metMonths = floor(metDays) / 30.417; // 185 days = 6.0821251274 months
+  double elapsedDays = (  ( (metMonths - floor(metMonths) ) * pow(10,3)) /1000 ) * 30.417; // 0.0821251274 months = 2.49800000013 days
+  // double elapsedHours = ??
+
+  /*
+
+  ISSUES: 
+  
+  There is a discrepancy between NASA data and my MET calculation in regards of hours: https://voyager.jpl.nasa.gov/mission/status/
+  Also there's an issue with elapsedDays: sometimes is 2.50, others is 3.50 or 4.50
+
+  Also issue with mins and secons: always are 17 mins, 54 secs
+  */
+
+  Serial.print("\ndifference: " + String(difference));
+  // Serial.print("\nmetYears: " + String(metYears));
+  
+  // Serial.print("\nfloor(metYears): " + String(floor(metYears)));
+  // Serial.print("\nDecimal part of metYears: " + String( (metYears - floor(metYears)) * pow(10,3) /1000 )  ); // * pow(10,3)
+  // Serial.print("\nfloor(metDays): " + String(floor(metDays)));
+  // Serial.print("\nfloor(metMonths): " + String(floor(metMonths)));
+
+  Serial.print("\nelapsedDays: " + String(elapsedDays));
+
+
+
+  String MET = String(int(floor(metYears))) + ":" + setTwoDigits(int(floor(metMonths))) + ":" + setTwoDigits(int(ceil(elapsedDays))) + ":" + setTwoDigits(elapsedTime.Hours) + ":" + setTwoDigits(elapsedTime.Minutes) + ":" + setTwoDigits(elapsedTime.Seconds);
+  return MET;
+}
+
 // Checks if is the correct UTC time to initiate RTC-GPS synchronization
 bool validTimeToSync() {
-  if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 01) {  // Original (good) proposal
-                                                                                                                    // if ((myRTC.minutes == 37 || myRTC.minutes == 10 || myRTC.minutes == 20 || myRTC.minutes == 30 || myRTC.minutes == 40 || myRTC.minutes == 50) && myRTC.seconds == 00) {  // Every 10 minutes
-    // if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
+  if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 01 && synced == false) {  // Original (good) proposal
+                                                                                                                                       // if ((myRTC.minutes == 0 || myRTC.minutes == 10 || myRTC.minutes == 20 || myRTC.minutes == 30 || myRTC.minutes == 40 || myRTC.minutes == 50) && myRTC.seconds == 00 && synced == false) {  // Every 10 minutes
+                                                                                                                                       // if ((myRTC.minutes == 15 || myRTC.minutes == 16 || myRTC.minutes == 17 || myRTC.minutes == 18 || myRTC.minutes == 19 || myRTC.minutes == 50) && myRTC.seconds == 00 && synced == false) {  // Any minute testing
     return true;
   } else {
+    synced = false;
     return false;
   }
 }
@@ -1312,11 +1423,11 @@ void syncGPSDateTime(bool strictMode) {
 
   // 9 mins = 540 secs = 540000 ms
   // 3 mins = 180 secs = 180000 ms
-  while ((endTime - startTime) <= 180000) {
+  while ((endTime - startTime) <= 180000) {  // Try to sync 3 mins
     if (ss.available() > 0) {
       if (gps.encode(ss.read())) {
 
-        if (strictMode) {
+        if (strictMode == true) {
 
           // Strict Mode: Requires a fixed location to sync time
           if (gps.location.isValid()) {
@@ -1339,6 +1450,7 @@ void syncGPSDateTime(bool strictMode) {
               if (day > 0 && day <= 31 && month <= 12 && year >= 2023) {
                 // Update RTC with GPS UTC time
                 myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
+                synced = true;
                 clearMessage();
                 tft.setCursor(12, 213);
                 tft.setTextColor(GREEN);
@@ -1373,6 +1485,7 @@ void syncGPSDateTime(bool strictMode) {
             if (day > 0 && day <= 31 && month <= 12 && year >= 2023) {
               // Update RTC with GPS UTC time
               myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
+              synced = true;
               clearMessage();
               tft.setCursor(12, 213);
               tft.setTextColor(GREEN);
@@ -1449,6 +1562,7 @@ bool validTimeToSave(int flag) {
 
   // if (myRTC.seconds == 0) {  // saves every minute
   // Saves every 5 seconds
+  // UPDATE: this might be wrong, since a tx could be received at second 2 for example.
   if (myRTC.seconds == 0 || myRTC.seconds == 5 || myRTC.seconds == 10 || myRTC.seconds == 15 || myRTC.seconds == 20 || myRTC.seconds == 25 || myRTC.seconds == 30 || myRTC.seconds == 35 || myRTC.seconds == 40 || myRTC.seconds == 45 || myRTC.seconds == 50 || myRTC.seconds == 55) {
     return true;
   }
@@ -1671,7 +1785,7 @@ void homescr() {
 }
 
 void menu1() {
-  boxes(4);
+  boxes(5);
 
   clearMessageStatusBar();
   tft.setCursor(1, 1);
@@ -1699,10 +1813,10 @@ void menu1() {
   tft.setTextSize(2);
   tft.println("Payloads");
 
-  // tft.setCursor(22, 157);
-  // tft.setTextColor(WHITE);
-  // tft.setTextSize(2);
-  // tft.println("Menu 1 B5");
+  tft.setCursor(22, 157);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("MET");
 
   // tft.setCursor(192, 157);
   // tft.setTextColor(WHITE);
@@ -2286,7 +2400,8 @@ void settingsb11action() {
   tft.setTextSize(2);
   tft.println("Syncing RTC-GPS ...");
 
-  syncGPSDateTime(false);  // Lose Mode
+  //syncGPSDateTime(false);  // Lose Mode
+  syncGPSDateTime(true);  // Strict Mode
 
   String time = getTimestampTime();
   String date = getTimestampDate();
@@ -2376,6 +2491,62 @@ void m1b4action() {
 }
 
 void m1b5action() {
+  clearCenter();
+  enableArea = false;
+  clearMessage();
+
+  String time = getTimestampTime();
+  String date = getTimestampDate();
+
+  /*
+
+  myRTC.updateTime();
+  return setTwoDigits(myRTC.hours) + ":" + setTwoDigits(myRTC.minutes) + ":" + setTwoDigits(myRTC.seconds);
+
+  #define BLACK 0x0000
+  #define BLUE 0x001F
+  #define RED 0xF800
+  #define GREEN 0x07E0
+  #define CYAN 0x07FF
+  #define MAGENTA 0xF81F
+  #define YELLOW 0xFFE0
+  #define WHITE 0xFFFF
+  #define TEST 0x1BF5
+  #define JJCOLOR 0x1CB6
+  #define JJORNG 0xFD03
+  #define MARS 0xFD00
+
+  */
+
+  // String metDate = "06:08:07";  // YRS, MOS, DAYS
+
+  String metDate = getMissionElapsedTime();
+
+  tft.setCursor(22, 37);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Mission Elapsed Time");
+
+  tft.setCursor(22, 77);
+  tft.setTextColor(MARS);
+  tft.setTextSize(2);
+  // tft.println(metDate + ":" + time);
+  tft.println(metDate);
+
+  tft.setCursor(22, 110);  // 22,117
+  tft.setTextColor(RED);
+  tft.setTextSize(1);
+  tft.println("YRS   MOS   DAYS  HRS   MINS  SECS");
+
+  tft.setCursor(22, 160);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(1);
+  tft.println("LAUNCH DATE");  // DEPLOY or LAUNCH DATE
+
+  tft.setCursor(22, 170);
+  tft.setTextColor(YELLOW);
+  tft.setTextSize(1);
+  tft.println("Aug. 5, 2011");
 }
 
 void m1b6action() {
