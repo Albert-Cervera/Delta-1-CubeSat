@@ -180,6 +180,32 @@ uint32_t losTolerance = 630000;  // 630000, Loss of Signal tolerance in ms //630
 float heatIndex;
 int dataMode = 1;
 
+// For MET calculations
+
+// Juno launch:
+// uint8_t launchDay = 5;
+// uint8_t launchMonth = 8;
+// int launchYear = 2011;
+// uint8_t launchHour = 16;
+// uint8_t launchMinute = 25;
+// uint8_t launchSecond = 0;
+
+// Juno orbit insertion:
+// uint8_t launchDay = 4;
+// uint8_t launchMonth = 7;
+// int launchYear = 2016;
+// uint8_t launchHour = 16;
+// uint8_t launchMinute = 25;
+// uint8_t launchSecond = 0;
+
+// Voyager:
+uint8_t launchDay = 5;
+uint8_t launchMonth = 9;
+int launchYear = 1977;
+uint8_t launchHour = 12;
+uint8_t launchMinute = 56;
+uint8_t launchSecond = 0;
+
 // 28 bytes size and 7 elements (4 bytes each(?))
 struct telemetryStruct {
   float humidity;
@@ -918,18 +944,9 @@ void loop() {
       if (page == 61) {
         settingsb1action();
       }
-      // No button or action there
-      // if (page == 1) {
-      //   m1b5action();
-      //   tft.setCursor(12, 213);
-      //   tft.setTextColor(RED);
-      //   tft.setTextSize(2);
-      //   tft.println("Menu 1 B5");
-      //   yled(550);
-      //   clearMessage();
-      // }
       if (page == 1) {
         m1b5action();
+        // printMetDate();
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
@@ -1120,6 +1137,10 @@ void loop() {
   if (referenceTime != currentTime) {
     drawClock(currentTime);
     referenceTime = currentTime;
+    // Trying to update the page every second
+    if (lastPage == 15) {
+      printMetDate();  // Mission Elapsed Time
+    }
   }
 
 
@@ -1310,43 +1331,12 @@ String getMissionElapsedTime() {
   // Or 11 years, 11 months, 30 days excluding the end date Aug. 4th 2023 (4382 days)
   // Or 12 years excluding the end date Aug. 5th 2023
 
-  // Juno launch:
-  // uint8_t launchDay = 5;
-  // uint8_t launchMonth = 8;
-  // int launchYear = 2011;
-  // uint8_t launchHour = 16;
-  // uint8_t launchMinute = 25;
-  // uint8_t launchSecond = 0;
-
-  // Juno orbit insertion:
-  // uint8_t launchDay = 4;
-  // uint8_t launchMonth = 7;
-  // int launchYear = 2016;
-  // uint8_t launchHour = 16;
-  // uint8_t launchMinute = 25;
-  // uint8_t launchSecond = 0;
-
-  // Voyager: 
-  uint8_t launchDay = 5;
-  uint8_t launchMonth = 9;
-  int launchYear = 1977;
-  uint8_t launchHour = 12;
-  uint8_t launchMinute = 56;
-  uint8_t launchSecond = 0;
-
-  myRTC.updateTime();
-  // Compute YRS, MOS, DAYS, HRS MINS & SECS passed from current timestamp
-
-
-  // String metSeconds;
-  // String metMinutes;
-  // String metHours = myRTC.hours - launchHour  // 19 - 16 = 3 hrs difference // 1 - 16 = -15 [!!!] Wrong, makes no sense, it should increase a day instead
-
- // 16:25:00 5th August 2011 // Today 
- // Wolgram: days from august 5 2011 to august 4 2023 =  11 years 11 months 30 days
-
   // tmElements_t time1 = { launchHour, launchMinute, launchSecond, 0, launchDay, launchMonth, CalendarYrToTm(launchYear) }, time2 = { 16, 25, 0, 0, 4, 8, CalendarYrToTm(myRTC.year) }; // time2 = { myRTC.hours, myRTC.minutes, myRTC.seconds, 0, 4, 8, CalendarYrToTm(myRTC.year) };
   tmElements_t time1 = { launchHour, launchMinute, launchSecond, 0, launchDay, launchMonth, CalendarYrToTm(launchYear) }, time2 = { myRTC.hours, myRTC.minutes, myRTC.seconds, 0, myRTC.dayofmonth, myRTC.month, CalendarYrToTm(myRTC.year) };
+
+  /* 
+    NOTE: The 'difference' var is responsible for introducing error: sometimes gives: 16621, 16622, 16623 or 16620 days
+  */
 
   uint32_t difference = (uint32_t)(makeTime(time2) - makeTime(time1));
 
@@ -1364,38 +1354,134 @@ String getMissionElapsedTime() {
   elapsedTime.Hours = difference % 24;
   difference /= 24;  // now it is days
 
-  elapsedTime.Days = difference; // 4384 days
+  elapsedTime.Days = difference; // Total elapsed days since date
 
-  double metYears = difference * 0.0027379; //4383 days = 12.0002157 years, 4382 days = 11.9974778 years, 16621 days = 45.5066359 years
+  double metYears = difference * 0.0027379;  //4383 days = 12.0002157 years, 4382 days = 11.9974778 years, 16621 days = 45.5066359 years
 
-  double metDays =  (  ( (metYears - floor(metYears) ) * pow(10,3)) /1000 )     * 365.2425; // 0.5066359 x 365.2425 = 185.044962706 days
-  double metMonths = floor(metDays) / 30.417; // 185 days = 6.0821251274 months
-  double elapsedDays = (  ( (metMonths - floor(metMonths) ) * pow(10,3)) /1000 ) * 30.417; // 0.0821251274 months = 2.49800000013 days
-  // double elapsedHours = ??
+  // double yearReminder = metYears - floor(metYears); // ( (metYears - floor(metYears) ) * pow(10,3) ) / 1000;
+  double yearReminder = ((metYears - floor(metYears)) * pow(10, 3));
+  
+  // double metDays = (yearReminder * 365.2425);
+  double metDays = (yearReminder * 365.2425) / 1000;  // 0.5066359 x 365.2425 = 185.044962706 days
+  
+
+  // Serial.print("\n (metYears - floor(metYears) * pow(10,3) ): " + String(  (metYears - floor(metYears) ) * pow(10,3) ));
+  // Serial.print("\nyearReminder: " + String(yearReminder));
+
+
+  double metMonths = floor(metDays) / 30.417;  // 185 days = 6.0821251274 months
+  // double elapsedDays = (  ( (metMonths - floor(metMonths) ) * pow(10,3)) / 1000 ) * 30.417; // 0.0821251274 months = 2.49800000013 days
+  double elapsedDays = (((metMonths - floor(metMonths)) * pow(10, 3)) * 30.417) / 1000;
+
 
   /*
-
   ISSUES: 
-  
-  There is a discrepancy between NASA data and my MET calculation in regards of hours: https://voyager.jpl.nasa.gov/mission/status/
-  Also there's an issue with elapsedDays: sometimes is 2.50, others is 3.50 or 4.50
 
-  Also issue with mins and secons: always are 17 mins, 54 secs
+  There is a discrepancy between NASA data and my MET calculation in regards of hours: https://voyager.jpl.nasa.gov/mission/status/
+  
+  UPDATE: It seems to be more accurate, but problem remains with the elapsedDays calculation, sometimes would be 2.50, 3.50 or 4.50 .
+  This seems to be due to the error carried in rounding and floating operations.
+
+  10:42:58.653 -> ------------------------------------
+  10:42:58.684 -> metMonths: 6.15
+  10:42:58.716 -> elapsedDays: 4.50
+  10:42:59.642 -> ------------------------------------
+  10:42:59.673 -> metMonths: 6.15 //.15 * 30.417 = 4.56255
+  10:42:59.705 -> elapsedDays: 4.50
+  10:43:00.661 -> ------------------------------------
+  10:43:00.693 -> metMonths: 6.05 //.05 * 30.417 = 1.52085
+  10:43:00.726 -> elapsedDays: 1.50
+  10:43:01.646 -> ------------------------------------
+  10:43:01.678 -> metMonths: 6.08  //.08 * 30.417 = 2.43336
+  10:43:01.711 -> elapsedDays: 2.50
+
+  [!!!] The error is in the metMonths variation whcih carries an error from metDays (185.05 or 186.04, 187.04)
+  
+  10:52:48.643 -> ------------------------------------
+  10:52:48.675 -> metDays: 186.04
+  10:52:48.708 -> metMonths: 6.12
+  10:52:49.664 -> ------------------------------------
+  10:52:49.696 -> metDays: 187.04
+  10:52:49.696 -> metMonths: 6.15
+
+  Printing metYears seems like the val is always constant:
+
+  10:57:47.661 -> ------------------------------------
+  10:57:47.693 -> 
+  10:57:47.693 -> metYears: 45.51
+  10:57:47.693 -> metDays: 186.04
+  10:57:48.649 -> ------------------------------------
+  10:57:48.681 -> 
+  10:57:48.681 -> metYears: 45.51
+  10:57:48.714 -> metDays: 187.04
+
+  Let's print yearReminder:
+
+  11:00:48.634 -> ------------------------------------
+  11:00:48.667 -> yearReminder: 509.37
+  11:00:48.698 -> metDays: 186.04
+  11:00:49.655 -> ------------------------------------
+  11:00:49.687 -> yearReminder: 512.11
+  11:00:49.687 -> metDays: 187.04
+
+  Let's print metYears and floor(metYears) and its difference:
+
+  11:05:59.632 -> ------------------------------------
+  11:05:59.695 -> metYears: 45.51
+  11:05:59.695 -> floor(metYears): 45.00
+  11:05:59.727 -> metYears - floor(metYears): 0.51
+  11:06:00.650 -> ------------------------------------
+  11:06:00.682 -> metYears: 45.50
+  11:06:00.715 -> floor(metYears): 45.00
+  11:06:00.746 -> metYears - floor(metYears): 0.50
+  11:06:01.637 -> ------------------------------------
+  11:06:01.702 -> metYears: 45.51
+  11:06:01.702 -> floor(metYears): 45.00
+  11:06:01.734 -> metYears - floor(metYears): 0.51
+
+  So metYears is introducing the variance!
+  Let's print difference * 0.0027379 (metYears) and 'difference' val (total elapsed days):
+
+  11:11:11.769 -> ------------------------------------
+  11:11:11.834 -> Elapsed days: 16621
+  11:11:11.834 -> metYears: 45.51
+  11:11:25.568 -> ------------------------------------
+  11:11:25.632 -> Elapsed days: 16622
+  11:11:25.632 -> metYears: 45.51
+  11:11:49.610 -> ------------------------------------
+  11:11:49.641 -> Elapsed days: 16623
+  11:11:49.673 -> metYears: 45.51
+  11:12:00.707 -> ------------------------------------
+  11:12:00.739 -> Elapsed days: 16620
+  11:12:00.739 -> metYears: 45.50
+  11:12:01.696 -> ------------------------------------
+  11:12:01.729 -> Elapsed days: 16621
+  11:12:01.729 -> metYears: 45.51
+  
+  [!!!] The error is in the elapsed days calculation ('difference' variable)!
+  Sometimes gives: 16621, 16622, 16623 or 16620 days.
+  TODO: Fix it and check math error carrying.
+
   */
 
-  Serial.print("\ndifference: " + String(difference));
-  // Serial.print("\nmetYears: " + String(metYears));
-  
+  Serial.print("\n------------------------------------");
+  Serial.print("\nElapsed days: " + String(difference));  // 16621, 16622, 16623 or 16620 days.
+  Serial.print("\nmetYears: " + String(metYears));      // 45.51 or 45.50 due to 'difference' var :c
   // Serial.print("\nfloor(metYears): " + String(floor(metYears)));
-  // Serial.print("\nDecimal part of metYears: " + String( (metYears - floor(metYears)) * pow(10,3) /1000 )  ); // * pow(10,3)
-  // Serial.print("\nfloor(metDays): " + String(floor(metDays)));
-  // Serial.print("\nfloor(metMonths): " + String(floor(metMonths)));
+  // Serial.print("\nmetYears - floor(metYears): " + String(metYears - floor(metYears) ));
 
-  Serial.print("\nelapsedDays: " + String(elapsedDays));
+  // Serial.print("\nyearReminder: " + String(yearReminder));
+  // Serial.print("\nmetDays: " + String(metDays));          // 185.05 or 186.04, 187.04
+  // Serial.print("\nmetMonths: " + String(metMonths));      // 6.08 or 6.12, 6.15
+  // Serial.print("\nelapsedDays: " + String(elapsedDays));  // 2.50 or 3.50, 4.50
 
 
+  int elapsedMinutes = (60 - launchMinute) + myRTC.minutes;
+  int elapsedHours = round(((myRTC.hours - launchHour) * 60) - elapsedMinutes) / 60;  //15 - 12 = 3 hours diff * 60 = 180 mins - 18 elapsedMins = 162 mins = 160 mins / 60 mins = 2 hrs
+  int elapsedSeconds = (myRTC.seconds - launchSecond);
 
-  String MET = String(int(floor(metYears))) + ":" + setTwoDigits(int(floor(metMonths))) + ":" + setTwoDigits(int(ceil(elapsedDays))) + ":" + setTwoDigits(elapsedTime.Hours) + ":" + setTwoDigits(elapsedTime.Minutes) + ":" + setTwoDigits(elapsedTime.Seconds);
+
+  String MET = String(int(floor(metYears))) + ":" + setTwoDigits(int(floor(metMonths))) + ":" + setTwoDigits(int(ceil(elapsedDays))) + ":" + setTwoDigits(elapsedHours) + ":" + setTwoDigits(elapsedMinutes) + ":" + setTwoDigits(elapsedSeconds);
   return MET;
 }
 
@@ -2490,50 +2576,28 @@ void m1b3action() {
 void m1b4action() {
 }
 
+void printMetDate() {
+  tft.fillRect(12, 77, 226, 16, BLACK); // Black out screen area for MET
+  String metDate = getMissionElapsedTime();
+  tft.setCursor(22, 77);
+  tft.setTextColor(MARS);
+  tft.setTextSize(2);
+  tft.println(metDate);
+}
+
 void m1b5action() {
   clearCenter();
   enableArea = false;
   clearMessage();
 
-  String time = getTimestampTime();
-  String date = getTimestampDate();
-
-  /*
-
-  myRTC.updateTime();
-  return setTwoDigits(myRTC.hours) + ":" + setTwoDigits(myRTC.minutes) + ":" + setTwoDigits(myRTC.seconds);
-
-  #define BLACK 0x0000
-  #define BLUE 0x001F
-  #define RED 0xF800
-  #define GREEN 0x07E0
-  #define CYAN 0x07FF
-  #define MAGENTA 0xF81F
-  #define YELLOW 0xFFE0
-  #define WHITE 0xFFFF
-  #define TEST 0x1BF5
-  #define JJCOLOR 0x1CB6
-  #define JJORNG 0xFD03
-  #define MARS 0xFD00
-
-  */
-
-  // String metDate = "06:08:07";  // YRS, MOS, DAYS
-
-  String metDate = getMissionElapsedTime();
+  lastPage = 15;
 
   tft.setCursor(22, 37);
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
   tft.println("Mission Elapsed Time");
 
-  tft.setCursor(22, 77);
-  tft.setTextColor(MARS);
-  tft.setTextSize(2);
-  // tft.println(metDate + ":" + time);
-  tft.println(metDate);
-
-  tft.setCursor(22, 110);  // 22,117
+  tft.setCursor(22, 110);
   tft.setTextColor(RED);
   tft.setTextSize(1);
   tft.println("YRS   MOS   DAYS  HRS   MINS  SECS");
@@ -2543,10 +2607,51 @@ void m1b5action() {
   tft.setTextSize(1);
   tft.println("LAUNCH DATE");  // DEPLOY or LAUNCH DATE
 
+  String monthLabel;
+  switch (launchMonth) {
+    case 1:
+      monthLabel = "Jan. ";
+      break;
+    case 2:
+      monthLabel = "Feb. ";
+      break;
+    case 3:
+      monthLabel = "Mar. ";
+      break;
+    case 4:
+      monthLabel = "Apr. ";
+      break;
+    case 5:
+      monthLabel = "May. ";
+      break;
+    case 6:
+      monthLabel = "Jun. ";
+      break;
+    case 7:
+      monthLabel = "Jul. ";
+      break;
+    case 8:
+      monthLabel = "Aug. ";
+      break;
+    case 9:
+      monthLabel = "Sept. ";
+      break;
+    case 10:
+      monthLabel = "Oct. ";
+      break;
+    case 11:
+      monthLabel = "Nov. ";
+      break;
+    case 12:
+      monthLabel = "Dec. ";
+      break;
+  }
+  String dateLabel = monthLabel + String(launchDay) + ", " + String(launchYear);
   tft.setCursor(22, 170);
   tft.setTextColor(YELLOW);
   tft.setTextSize(1);
-  tft.println("Aug. 5, 2011");
+  // tft.println("Aug. 5, 2011");
+  tft.println(dateLabel);
 }
 
 void m1b6action() {
