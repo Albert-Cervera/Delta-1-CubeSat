@@ -202,8 +202,8 @@ int dataMode = 1;
 uint8_t launchDay = 5;
 uint8_t launchMonth = 9;
 int launchYear = 1977;
-uint8_t launchHour = 12;
-uint8_t launchMinute = 56;
+uint8_t launchHour = 12;     // 12 original
+uint8_t launchMinute = 56;  // 56 original
 uint8_t launchSecond = 0;
 
 // 28 bytes size and 7 elements (4 bytes each(?))
@@ -1331,13 +1331,22 @@ String getMissionElapsedTime() {
   // Or 11 years, 11 months, 30 days excluding the end date Aug. 4th 2023 (4382 days)
   // Or 12 years excluding the end date Aug. 5th 2023
 
-  // tmElements_t time1 = { launchHour, launchMinute, launchSecond, 0, launchDay, launchMonth, CalendarYrToTm(launchYear) }, time2 = { 16, 25, 0, 0, 4, 8, CalendarYrToTm(myRTC.year) }; // time2 = { myRTC.hours, myRTC.minutes, myRTC.seconds, 0, 4, 8, CalendarYrToTm(myRTC.year) };
+  // tmElements_t time1 = { launchHour, launchMinute, launchSecond, 0, launchDay, launchMonth, CalendarYrToTm(launchYear) }, time2 = { 13, 29, 0, 0, 5, 9, CalendarYrToTm(myRTC.year) }; // time2 = { myRTC.hours, myRTC.minutes, myRTC.seconds, 0, 4, 8, CalendarYrToTm(myRTC.year) };
   tmElements_t time1 = { launchHour, launchMinute, launchSecond, 0, launchDay, launchMonth, CalendarYrToTm(launchYear) }, time2 = { myRTC.hours, myRTC.minutes, myRTC.seconds, 0, myRTC.dayofmonth, myRTC.month, CalendarYrToTm(myRTC.year) };
 
   /* 
     NOTE: The 'difference' var is responsible for introducing error: sometimes gives: 16621, 16622, 16623 or 16620 days
   */
 
+  // Original ---------------------------------------------------------------
+  // uint32_t difference = (uint32_t)(makeTime(time2) - makeTime(time1));
+
+  // struct elapsedTime_t {
+  //   uint8_t Seconds, Minutes, Hours;
+  //   uint16_t Days;
+  // } elapsedTime;
+
+  // New ---------------------------------------------------------------
   uint32_t difference = (uint32_t)(makeTime(time2) - makeTime(time1));
 
   struct elapsedTime_t {
@@ -1354,16 +1363,31 @@ String getMissionElapsedTime() {
   elapsedTime.Hours = difference % 24;
   difference /= 24;  // now it is days
 
-  elapsedTime.Days = difference; // Total elapsed days since date
+
+  // Serial.print("\ndifference without division: " + String(difference));
+
+  // difference = difference / 60;
+  // // Serial.print("\ndifference: " + String(difference));
+
+  // difference = difference / 60;
+  // // Serial.print("\ndifference: " + String(difference));
+
+  // difference = difference / 24;
+  // // Serial.print("\ndifference: " + String(difference));
+
+
+
+  // elapsedTime.Days = difference; // Total elapsed days since date
+
 
   double metYears = difference * 0.0027379;  //4383 days = 12.0002157 years, 4382 days = 11.9974778 years, 16621 days = 45.5066359 years
 
   // double yearReminder = metYears - floor(metYears); // ( (metYears - floor(metYears) ) * pow(10,3) ) / 1000;
   double yearReminder = ((metYears - floor(metYears)) * pow(10, 3));
-  
+
   // double metDays = (yearReminder * 365.2425);
   double metDays = (yearReminder * 365.2425) / 1000;  // 0.5066359 x 365.2425 = 185.044962706 days
-  
+
 
   // Serial.print("\n (metYears - floor(metYears) * pow(10,3) ): " + String(  (metYears - floor(metYears) ) * pow(10,3) ));
   // Serial.print("\nyearReminder: " + String(yearReminder));
@@ -1375,98 +1399,98 @@ String getMissionElapsedTime() {
 
 
   /*
-  ISSUES: 
+    ISSUES: 
 
-  There is a discrepancy between NASA data and my MET calculation in regards of hours: https://voyager.jpl.nasa.gov/mission/status/
-  
-  UPDATE: It seems to be more accurate, but problem remains with the elapsedDays calculation, sometimes would be 2.50, 3.50 or 4.50 .
-  This seems to be due to the error carried in rounding and floating operations.
+    There is a discrepancy between NASA data and my MET calculation in regards of hours: https://voyager.jpl.nasa.gov/mission/status/
+    
+    UPDATE: It seems to be more accurate, but problem remains with the elapsedDays calculation, sometimes would be 2.50, 3.50 or 4.50 .
+    This seems to be due to the error carried in rounding and floating operations.
 
-  10:42:58.653 -> ------------------------------------
-  10:42:58.684 -> metMonths: 6.15
-  10:42:58.716 -> elapsedDays: 4.50
-  10:42:59.642 -> ------------------------------------
-  10:42:59.673 -> metMonths: 6.15 //.15 * 30.417 = 4.56255
-  10:42:59.705 -> elapsedDays: 4.50
-  10:43:00.661 -> ------------------------------------
-  10:43:00.693 -> metMonths: 6.05 //.05 * 30.417 = 1.52085
-  10:43:00.726 -> elapsedDays: 1.50
-  10:43:01.646 -> ------------------------------------
-  10:43:01.678 -> metMonths: 6.08  //.08 * 30.417 = 2.43336
-  10:43:01.711 -> elapsedDays: 2.50
+    10:42:58.653 -> ------------------------------------
+    10:42:58.684 -> metMonths: 6.15
+    10:42:58.716 -> elapsedDays: 4.50
+    10:42:59.642 -> ------------------------------------
+    10:42:59.673 -> metMonths: 6.15 //.15 * 30.417 = 4.56255
+    10:42:59.705 -> elapsedDays: 4.50
+    10:43:00.661 -> ------------------------------------
+    10:43:00.693 -> metMonths: 6.05 //.05 * 30.417 = 1.52085
+    10:43:00.726 -> elapsedDays: 1.50
+    10:43:01.646 -> ------------------------------------
+    10:43:01.678 -> metMonths: 6.08  //.08 * 30.417 = 2.43336
+    10:43:01.711 -> elapsedDays: 2.50
 
-  [!!!] The error is in the metMonths variation whcih carries an error from metDays (185.05 or 186.04, 187.04)
-  
-  10:52:48.643 -> ------------------------------------
-  10:52:48.675 -> metDays: 186.04
-  10:52:48.708 -> metMonths: 6.12
-  10:52:49.664 -> ------------------------------------
-  10:52:49.696 -> metDays: 187.04
-  10:52:49.696 -> metMonths: 6.15
+    [!!!] The error is in the metMonths variation whcih carries an error from metDays (185.05 or 186.04, 187.04)
+    
+    10:52:48.643 -> ------------------------------------
+    10:52:48.675 -> metDays: 186.04
+    10:52:48.708 -> metMonths: 6.12
+    10:52:49.664 -> ------------------------------------
+    10:52:49.696 -> metDays: 187.04
+    10:52:49.696 -> metMonths: 6.15
 
-  Printing metYears seems like the val is always constant:
+    Printing metYears seems like the val is always constant:
 
-  10:57:47.661 -> ------------------------------------
-  10:57:47.693 -> 
-  10:57:47.693 -> metYears: 45.51
-  10:57:47.693 -> metDays: 186.04
-  10:57:48.649 -> ------------------------------------
-  10:57:48.681 -> 
-  10:57:48.681 -> metYears: 45.51
-  10:57:48.714 -> metDays: 187.04
+    10:57:47.661 -> ------------------------------------
+    10:57:47.693 -> 
+    10:57:47.693 -> metYears: 45.51
+    10:57:47.693 -> metDays: 186.04
+    10:57:48.649 -> ------------------------------------
+    10:57:48.681 -> 
+    10:57:48.681 -> metYears: 45.51
+    10:57:48.714 -> metDays: 187.04
 
-  Let's print yearReminder:
+    Let's print yearReminder:
 
-  11:00:48.634 -> ------------------------------------
-  11:00:48.667 -> yearReminder: 509.37
-  11:00:48.698 -> metDays: 186.04
-  11:00:49.655 -> ------------------------------------
-  11:00:49.687 -> yearReminder: 512.11
-  11:00:49.687 -> metDays: 187.04
+    11:00:48.634 -> ------------------------------------
+    11:00:48.667 -> yearReminder: 509.37
+    11:00:48.698 -> metDays: 186.04
+    11:00:49.655 -> ------------------------------------
+    11:00:49.687 -> yearReminder: 512.11
+    11:00:49.687 -> metDays: 187.04
 
-  Let's print metYears and floor(metYears) and its difference:
+    Let's print metYears and floor(metYears) and its difference:
 
-  11:05:59.632 -> ------------------------------------
-  11:05:59.695 -> metYears: 45.51
-  11:05:59.695 -> floor(metYears): 45.00
-  11:05:59.727 -> metYears - floor(metYears): 0.51
-  11:06:00.650 -> ------------------------------------
-  11:06:00.682 -> metYears: 45.50
-  11:06:00.715 -> floor(metYears): 45.00
-  11:06:00.746 -> metYears - floor(metYears): 0.50
-  11:06:01.637 -> ------------------------------------
-  11:06:01.702 -> metYears: 45.51
-  11:06:01.702 -> floor(metYears): 45.00
-  11:06:01.734 -> metYears - floor(metYears): 0.51
+    11:05:59.632 -> ------------------------------------
+    11:05:59.695 -> metYears: 45.51
+    11:05:59.695 -> floor(metYears): 45.00
+    11:05:59.727 -> metYears - floor(metYears): 0.51
+    11:06:00.650 -> ------------------------------------
+    11:06:00.682 -> metYears: 45.50
+    11:06:00.715 -> floor(metYears): 45.00
+    11:06:00.746 -> metYears - floor(metYears): 0.50
+    11:06:01.637 -> ------------------------------------
+    11:06:01.702 -> metYears: 45.51
+    11:06:01.702 -> floor(metYears): 45.00
+    11:06:01.734 -> metYears - floor(metYears): 0.51
 
-  So metYears is introducing the variance!
-  Let's print difference * 0.0027379 (metYears) and 'difference' val (total elapsed days):
+    So metYears is introducing the variance!
+    Let's print difference * 0.0027379 (metYears) and 'difference' val (total elapsed days):
 
-  11:11:11.769 -> ------------------------------------
-  11:11:11.834 -> Elapsed days: 16621
-  11:11:11.834 -> metYears: 45.51
-  11:11:25.568 -> ------------------------------------
-  11:11:25.632 -> Elapsed days: 16622
-  11:11:25.632 -> metYears: 45.51
-  11:11:49.610 -> ------------------------------------
-  11:11:49.641 -> Elapsed days: 16623
-  11:11:49.673 -> metYears: 45.51
-  11:12:00.707 -> ------------------------------------
-  11:12:00.739 -> Elapsed days: 16620
-  11:12:00.739 -> metYears: 45.50
-  11:12:01.696 -> ------------------------------------
-  11:12:01.729 -> Elapsed days: 16621
-  11:12:01.729 -> metYears: 45.51
-  
-  [!!!] The error is in the elapsed days calculation ('difference' variable)!
-  Sometimes gives: 16621, 16622, 16623 or 16620 days.
-  TODO: Fix it and check math error carrying.
+    11:11:11.769 -> ------------------------------------
+    11:11:11.834 -> Elapsed days: 16621
+    11:11:11.834 -> metYears: 45.51
+    11:11:25.568 -> ------------------------------------
+    11:11:25.632 -> Elapsed days: 16622
+    11:11:25.632 -> metYears: 45.51
+    11:11:49.610 -> ------------------------------------
+    11:11:49.641 -> Elapsed days: 16623
+    11:11:49.673 -> metYears: 45.51
+    11:12:00.707 -> ------------------------------------
+    11:12:00.739 -> Elapsed days: 16620
+    11:12:00.739 -> metYears: 45.50
+    11:12:01.696 -> ------------------------------------
+    11:12:01.729 -> Elapsed days: 16621
+    11:12:01.729 -> metYears: 45.51
+    
+    [!!!] The error is in the elapsed days calculation ('difference' variable)!
+    Sometimes gives: 16621, 16622, 16623 or 16620 days.
+    TODO: Fix it and check math error carrying.
 
   */
 
-  Serial.print("\n------------------------------------");
-  Serial.print("\nElapsed days: " + String(difference));  // 16621, 16622, 16623 or 16620 days.
-  Serial.print("\nmetYears: " + String(metYears));      // 45.51 or 45.50 due to 'difference' var :c
+  // Serial.print("\n------------------------------------");
+  // Serial.print("\nElapsed days: " + String(difference));  // 16621, 16622, 16623 or 16620 days.
+  // Serial.print("\nmetYears: " + String(metYears));      // 45.51 or 45.50 due to 'difference' var :c
   // Serial.print("\nfloor(metYears): " + String(floor(metYears)));
   // Serial.print("\nmetYears - floor(metYears): " + String(metYears - floor(metYears) ));
 
@@ -1476,8 +1500,62 @@ String getMissionElapsedTime() {
   // Serial.print("\nelapsedDays: " + String(elapsedDays));  // 2.50 or 3.50, 4.50
 
 
+  int hourCorrection = 0;
   int elapsedMinutes = (60 - launchMinute) + myRTC.minutes;
-  int elapsedHours = round(((myRTC.hours - launchHour) * 60) - elapsedMinutes) / 60;  //15 - 12 = 3 hours diff * 60 = 180 mins - 18 elapsedMins = 162 mins = 160 mins / 60 mins = 2 hrs
+
+  // From 22 hours went to 24 skiping 23
+
+  // test: minute 47 on RTC 
+
+  if (elapsedMinutes == 60) {
+    elapsedMinutes = 0;
+    hourCorrection = 1;
+  } else if (elapsedMinutes > 60) {
+    elapsedMinutes -= 60;
+    hourCorrection = 1;
+  } else { // elapsedMinutes < 60
+    hourCorrection = 0;
+  }
+
+  /* Voyager launch
+    uint8_t launchDay = 5;
+    uint8_t launchMonth = 9;
+    int launchYear = 1977;
+    uint8_t launchHour = 12;
+    uint8_t launchMinute = 56;
+    uint8_t launchSecond = 0;
+
+  */
+  int elapsedHours;
+  // local 18 hrs, but launchHour = 19 => elapsedHours should be 23hrs: 24 + (myRTC.hours - launchHour)
+
+
+
+  int hourDifference = myRTC.hours - launchHour;
+
+  if (hourDifference == 0) {  // 24 hrs have passed // When the hours are the same, this means 23 hrs have passed
+    elapsedHours = 23 + hourCorrection;
+  } else if (hourDifference < 0) {  // local 18, but launch 19 = -1, or local 15 and launch 20 = -5
+    elapsedHours = (23 + (hourDifference)) + hourCorrection;
+  } else {  // difference is > 0 // local 18, launch 15, local 1h000, launch 0h00
+    if (launchHour == 0) {
+      elapsedHours = 23 + hourCorrection;
+    } else {
+      elapsedHours = (round(((hourDifference)*60) - elapsedMinutes) / 60) + hourCorrection;
+    }
+  }
+
+  if (elapsedHours == 24) { // Is it possible to be > 24?
+    elapsedHours = 0;
+  } else if (elapsedHours > 24) {
+    elapsedHours = elapsedHours -24;
+  }
+
+  // int elapsedHours = (round(((abs(myRTC.hours - launchHour)) * 60) - elapsedMinutes) / 60) + hourCorrection;
+  //abs(15 - 12) = 3 hours diff * 60 = 180 mins - 18 elapsedMins = 162 mins = 160 mins / 60 mins = 2 hrs + hourCorrection from minute computation
+
+  
+
   int elapsedSeconds = (myRTC.seconds - launchSecond);
 
 
@@ -2577,7 +2655,7 @@ void m1b4action() {
 }
 
 void printMetDate() {
-  tft.fillRect(12, 77, 226, 16, BLACK); // Black out screen area for MET
+  tft.fillRect(12, 77, 226, 16, BLACK);  // Black out screen area for MET
   String metDate = getMissionElapsedTime();
   tft.setCursor(22, 77);
   tft.setTextColor(MARS);
