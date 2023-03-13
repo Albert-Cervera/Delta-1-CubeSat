@@ -1393,6 +1393,7 @@ String getElapsedTime(bool isMET) {
 
   uint8_t refHour, refMinute, refSecond, refDay, refMonth;
   int refYear;
+  String stringElapsedTime;
 
   if (isMET) {
     refHour = launchHour;
@@ -1410,17 +1411,21 @@ String getElapsedTime(bool isMET) {
     refYear = initYear;
   }
 
-  // TODO: add validation if year and all data is zero
+  if (refDay == 0 && refMonth == 0 && refYear == 0) {
+    stringElapsedTime = "00:00:00:00:00:00";
+  } else {
 
-  // Serial.print("\n-------------------------------");
-  // Serial.print("\nrefHour: " + String(refHour));
-  // Serial.print("\nrefMinute: " + String(refMinute));
-  // Serial.print("\nrefSecond: " + String(refSecond));
-  // Serial.print("\nrefDay: " + String(refDay));
-  // Serial.print("\nrefMonth: " + String(refMonth));
-  // Serial.print("\nrefYear: " + String(refYear));
+    // TODO: add validation if year and all data is zero
 
-  /*
+    // Serial.print("\n-------------------------------");
+    // Serial.print("\nrefHour: " + String(refHour));
+    // Serial.print("\nrefMinute: " + String(refMinute));
+    // Serial.print("\nrefSecond: " + String(refSecond));
+    // Serial.print("\nrefDay: " + String(refDay));
+    // Serial.print("\nrefMonth: " + String(refMonth));
+    // Serial.print("\nrefYear: " + String(refYear));
+
+    /*
   17:55:52.719 -> refHour: 22
   17:55:52.752 -> refMinute: 40
   17:55:52.752 -> refSecond: 51
@@ -1452,48 +1457,48 @@ String getElapsedTime(bool isMET) {
   */
 
 
-  // tmElements_t time1 = { launchHour, launchMinute, launchSecond, 0, launchDay, launchMonth, CalendarYrToTm(launchYear) }, time2 = { 13, 29, 0, 0, 5, 9, CalendarYrToTm(myRTC.year) }; // time2 = { myRTC.hours, myRTC.minutes, myRTC.seconds, 0, 4, 8, CalendarYrToTm(myRTC.year) };
-  tmElements_t time1 = { refHour, refMinute, refSecond, 0, refDay, refMonth, CalendarYrToTm(refYear) }, time2 = { myRTC.hours, myRTC.minutes, myRTC.seconds, 0, myRTC.dayofmonth, myRTC.month, CalendarYrToTm(myRTC.year) };
+    // tmElements_t time1 = { launchHour, launchMinute, launchSecond, 0, launchDay, launchMonth, CalendarYrToTm(launchYear) }, time2 = { 13, 29, 0, 0, 5, 9, CalendarYrToTm(myRTC.year) }; // time2 = { myRTC.hours, myRTC.minutes, myRTC.seconds, 0, 4, 8, CalendarYrToTm(myRTC.year) };
+    tmElements_t time1 = { refHour, refMinute, refSecond, 0, refDay, refMonth, CalendarYrToTm(refYear) }, time2 = { myRTC.hours, myRTC.minutes, myRTC.seconds, 0, myRTC.dayofmonth, myRTC.month, CalendarYrToTm(myRTC.year) };
 
-  // tmElements_t time1 = { refHour, refMinute, refSecond, 0, refDay, refMonth, CalendarYrToTm(refYear) };
-  // tmElements_t time2 = { uint8_t(myRTC.hours), uint8_t(myRTC.minutes), uint8_t(27), 0, uint8_t(myRTC.dayofmonth), uint8_t(myRTC.month), CalendarYrToTm(int(myRTC.year)) };
+    // tmElements_t time1 = { refHour, refMinute, refSecond, 0, refDay, refMonth, CalendarYrToTm(refYear) };
+    // tmElements_t time2 = { uint8_t(myRTC.hours), uint8_t(myRTC.minutes), uint8_t(27), 0, uint8_t(myRTC.dayofmonth), uint8_t(myRTC.month), CalendarYrToTm(int(myRTC.year)) };
 
-  // Serial.print("\nmyRTC.hours: " + String(myRTC.hours));
-  // Serial.print("\nmyRTC.minutes: " + String(myRTC.minutes));
-  // Serial.print("\nmyRTC.seconds: " + String(myRTC.seconds));
-  // Serial.print("\nmyRTC.dayofmonth: " + String(myRTC.dayofmonth));
-  // Serial.print("\nmyRTC.month: " + String(myRTC.month));
-  // Serial.print("\nmyRTC.year: " + String(myRTC.year));
+    // Serial.print("\nmyRTC.hours: " + String(myRTC.hours));
+    // Serial.print("\nmyRTC.minutes: " + String(myRTC.minutes));
+    // Serial.print("\nmyRTC.seconds: " + String(myRTC.seconds));
+    // Serial.print("\nmyRTC.dayofmonth: " + String(myRTC.dayofmonth));
+    // Serial.print("\nmyRTC.month: " + String(myRTC.month));
+    // Serial.print("\nmyRTC.year: " + String(myRTC.year));
 
-  /* 
+    /* 
     NOTE: The 'difference' var is responsible for introducing error: sometimes gives: 16621, 16622, 16623 or 16620 days
   */
 
-  // Original ---------------------------------------------------------------
-  // uint32_t difference = (uint32_t)(makeTime(time2) - makeTime(time1));
+    // Original ---------------------------------------------------------------
+    // uint32_t difference = (uint32_t)(makeTime(time2) - makeTime(time1));
 
-  // struct elapsedTime_t {
-  //   uint8_t Seconds, Minutes, Hours;
-  //   uint16_t Days;
-  // } elapsedTime;
+    // struct elapsedTime_t {
+    //   uint8_t Seconds, Minutes, Hours;
+    //   uint16_t Days;
+    // } elapsedTime;
 
-  // New ---------------------------------------------------------------
-  uint32_t timeStamp1 = makeTime(time1);
-  uint32_t timeStamp2 = makeTime(time2);
+    // New ---------------------------------------------------------------
+    uint32_t timeStamp1 = makeTime(time1);
+    uint32_t timeStamp2 = makeTime(time2);
 
-  uint32_t difference = (uint32_t)(timeStamp2 - timeStamp1);
-  // int difference = makeTime(time2) - makeTime(time1);
+    uint32_t difference = (uint32_t)(timeStamp2 - timeStamp1);
+    // int difference = makeTime(time2) - makeTime(time1);
 
-  // Serial.print("\n-----------------------------------------");
-  // Serial.print("\nmakeTime(time1): " + String(makeTime(time1)));
-  // Serial.print("\nmakeTime(time2): " + String(makeTime(time2)));
-  // Serial.print("\n\ndifference without division: " + String(difference));
+    // Serial.print("\n-----------------------------------------");
+    // Serial.print("\nmakeTime(time1): " + String(makeTime(time1)));
+    // Serial.print("\nmakeTime(time2): " + String(makeTime(time2)));
+    // Serial.print("\n\ndifference without division: " + String(difference));
 
-  if (timeStamp2 < timeStamp1) {
-    difference = 0;
-  }
+    if (timeStamp2 < timeStamp1) {
+      difference = 0;
+    }
 
-  /*
+    /*
   Error seems to be between second 0 and 26. Between [27, 59] works fine
 
     18:30:08.601 -> -----------------------------------------
@@ -1512,59 +1517,60 @@ String getElapsedTime(bool isMET) {
 
   */
 
-  struct elapsedTime_t {
-    uint8_t Seconds, Minutes, Hours;
-    uint16_t Days;
-  } elapsedTime;
+    // struct elapsedTime_t {
+    //   uint8_t Seconds, Minutes, Hours;
+    //   uint16_t Days;
+    // } elapsedTime;
 
-  elapsedTime.Seconds = difference % 60;
-  difference /= 60;  // now it is minutes
+    // elapsedTime.Seconds = difference % 60;
+    difference /= 60;  // now it is minutes
 
-  elapsedTime.Minutes = difference % 60;
-  difference /= 60;  // now it is hours
+    // elapsedTime.Minutes = difference % 60;
+    difference /= 60;  // now it is hours
 
-  elapsedTime.Hours = difference % 24;
-  difference /= 24;  // now it is days
-
-
-  // Serial.print("\ndifference without division: " + String(difference));
-
-  // 18:10:27.700 -> difference without division: 49710
-  // 18:10:28.689 -> difference without division: 0
-
-  // difference = difference / 60;
-  // // Serial.print("\ndifference: " + String(difference));
-
-  // difference = difference / 60;
-  // // Serial.print("\ndifference: " + String(difference));
-
-  // difference = difference / 24;
-  Serial.print("\ndifference (total days): " + String(difference));
+    // elapsedTime.Hours = difference % 24;
+    difference /= 24;  // now it is days
 
 
+    // Serial.print("\ndifference without division: " + String(difference));
 
-  // elapsedTime.Days = difference; // Total elapsed days since date
+    // 18:10:27.700 -> difference without division: 49710
+    // 18:10:28.689 -> difference without division: 0
 
+    // difference = difference / 60;
+    // // Serial.print("\ndifference: " + String(difference));
 
-  double metYears = difference * 0.0027379;  //4383 days = 12.0002157 years, 4382 days = 11.9974778 years, 16621 days = 45.5066359 years
+    // difference = difference / 60;
+    // // Serial.print("\ndifference: " + String(difference));
 
-  // double yearReminder = metYears - floor(metYears); // ( (metYears - floor(metYears) ) * pow(10,3) ) / 1000;
-  double yearReminder = ((metYears - floor(metYears)) * pow(10, 3));
+    // difference = difference / 24;
 
-  // double metDays = (yearReminder * 365.2425);
-  double metDays = (yearReminder * 365.2425) / 1000;  // 0.5066359 x 365.2425 = 185.044962706 days
-
-
-  // Serial.print("\n (metYears - floor(metYears) * pow(10,3) ): " + String(  (metYears - floor(metYears) ) * pow(10,3) ));
-  // Serial.print("\nyearReminder: " + String(yearReminder));
-
-
-  double metMonths = floor(metDays) / 30.417;  // 185 days = 6.0821251274 months
-  // double elapsedDays = (  ( (metMonths - floor(metMonths) ) * pow(10,3)) / 1000 ) * 30.417; // 0.0821251274 months = 2.49800000013 days
-  double elapsedDays = (((metMonths - floor(metMonths)) * pow(10, 3)) * 30.417) / 1000;
+    Serial.print("\ndifference (total days): " + String(difference));
 
 
-  /*
+
+    // elapsedTime.Days = difference; // Total elapsed days since date
+
+
+    double metYears = difference * 0.0027379;  //4383 days = 12.0002157 years, 4382 days = 11.9974778 years, 16621 days = 45.5066359 years
+
+    // double yearReminder = metYears - floor(metYears); // ( (metYears - floor(metYears) ) * pow(10,3) ) / 1000;
+    double yearReminder = ((metYears - floor(metYears)) * pow(10, 3));
+
+    // double metDays = (yearReminder * 365.2425);
+    double metDays = (yearReminder * 365.2425) / 1000;  // 0.5066359 x 365.2425 = 185.044962706 days
+
+
+    // Serial.print("\n (metYears - floor(metYears) * pow(10,3) ): " + String(  (metYears - floor(metYears) ) * pow(10,3) ));
+    // Serial.print("\nyearReminder: " + String(yearReminder));
+
+
+    double metMonths = floor(metDays) / 30.417;  // 185 days = 6.0821251274 months
+    // double elapsedDays = (  ( (metMonths - floor(metMonths) ) * pow(10,3)) / 1000 ) * 30.417; // 0.0821251274 months = 2.49800000013 days
+    double elapsedDays = (((metMonths - floor(metMonths)) * pow(10, 3)) * 30.417) / 1000;
+
+
+    /*
     ISSUES: 
 
     There is a discrepancy between NASA data and my MET calculation in regards of hours: https://voyager.jpl.nasa.gov/mission/status/
@@ -1654,116 +1660,129 @@ String getElapsedTime(bool isMET) {
 
   */
 
-  // Serial.print("\n------------------------------------");
-  // Serial.print("\nElapsed days: " + String(difference));  // 16621, 16622, 16623 or 16620 days.
-  // Serial.print("\nmetYears: " + String(metYears));      // 45.51 or 45.50 due to 'difference' var :c
-  // Serial.print("\nfloor(metYears): " + String(floor(metYears)));
-  // Serial.print("\nmetYears - floor(metYears): " + String(metYears - floor(metYears) ));
+    // Serial.print("\n------------------------------------");
+    // Serial.print("\nElapsed days: " + String(difference));  // 16621, 16622, 16623 or 16620 days.
+    // Serial.print("\nmetYears: " + String(metYears));      // 45.51 or 45.50 due to 'difference' var :c
+    // Serial.print("\nfloor(metYears): " + String(floor(metYears)));
+    // Serial.print("\nmetYears - floor(metYears): " + String(metYears - floor(metYears) ));
 
-  // Serial.print("\nyearReminder: " + String(yearReminder));
-  // Serial.print("\nmetDays: " + String(metDays));          // 185.05 or 186.04, 187.04
-  // Serial.print("\nmetMonths: " + String(metMonths));      // 6.08 or 6.12, 6.15
-  // Serial.print("\nelapsedDays: " + String(elapsedDays));  // 2.50 or 3.50, 4.50
+    // Serial.print("\nyearReminder: " + String(yearReminder));
+    // Serial.print("\nmetDays: " + String(metDays));          // 185.05 or 186.04, 187.04
+    // Serial.print("\nmetMonths: " + String(metMonths));      // 6.08 or 6.12, 6.15
+    // Serial.print("\nelapsedDays: " + String(elapsedDays));  // 2.50 or 3.50, 4.50
 
-  int elapsedSeconds = (60 - refSecond) + myRTC.seconds;  // ref 51 and current 10 = 19
-  int minuteCorrection;
+    int minuteCorrection;
+    int hourCorrection;
 
-  if (elapsedSeconds == 60) {
-    elapsedSeconds = 0;
-    minuteCorrection = 1;
-  } else if (elapsedSeconds > 60) {  // how? ref 1, current 59 = 58
-    elapsedSeconds -= 60;
-    minuteCorrection = 0;  // 1
-  } else {
-    minuteCorrection = 0;
-  }
+    int elapsedSeconds = (60 - refSecond) + myRTC.seconds;  // ref 51 and current 10 = 19
 
-  int hourCorrection;
-  int elapsedMinutes = (60 - refMinute) + myRTC.minutes;  // original
-  // int elapsedMinutes = ((60 - refMinute) + myRTC.minutes) - minuteCorrection;
-
-
-  if (elapsedMinutes == 60) {
-    elapsedMinutes = 0;
-    hourCorrection = 1;
-  } else if (elapsedMinutes > 60) {
-    elapsedMinutes -= 60;
-    hourCorrection = 0;  // 1
-  } else {               // elapsedMinutes < 60
-    hourCorrection = 0;
-  }
-
-  elapsedMinutes += minuteCorrection;
-
-
-  int elapsedHours;
-
-
-  int hourDifference = myRTC.hours - refHour;
-
-  // if (hourDifference != 0) {
-
-  // }
-
-  if (hourDifference < 0) { // local 18, but launch 19 = -1, or local 15 and launch 20 = -5
-    elapsedHours = (23 + (hourDifference)) + hourCorrection;
-  } else { // difference is > 0 OR 0 // local 18, launch 15, local 1h000, launch 0h00
-    if (refHour == 0) {
-      elapsedHours = 23 + hourCorrection; // Potentially wrong
+    if (elapsedSeconds == 60) {  // how? When refSecond and rtc.seconds are the same
+      elapsedSeconds = 0;
+      minuteCorrection = 1;
+    } else if (elapsedSeconds > 60) {  // how? ref 1, current 59 = 58
+      elapsedSeconds -= 60;
+      minuteCorrection = 0;
     } else {
-      elapsedHours = (round(((hourDifference)*60) - elapsedMinutes) / 60) + hourCorrection;
+      minuteCorrection = 0;
     }
+
+    int rtcMinutesHelper;
+    if (myRTC.seconds >= refSecond) {  // from 30 to 59 seconds
+      // Allow rtc.Minutes to change
+      rtcMinutesHelper = myRTC.minutes;
+    } else {  // from 0 to 29 seconds
+      rtcMinutesHelper = myRTC.minutes - 1;
+    }
+
+    int elapsedMinutes = (60 - refMinute) + rtcMinutesHelper;
+
+    if (elapsedMinutes == 60) {  // how? When refMinute and rtc.minutes are the same
+      elapsedMinutes = 0;
+      hourCorrection = 1;
+    } else if (elapsedMinutes > 60) {
+      elapsedMinutes -= 60;
+      hourCorrection = 0;
+    } else {  // elapsedMinutes < 60
+      hourCorrection = 0;
+    }
+
+    elapsedMinutes += minuteCorrection;
+
+    int rtcHoursHelper;
+    if (rtcMinutesHelper >= refMinute) {
+      // Allow rtc.Hours to change
+      rtcHoursHelper = myRTC.hours;
+    } else {
+      rtcHoursHelper = myRTC.hours - 1;
+    }
+
+    // It has an extra hour
+    int elapsedHours = (24 - refHour) + rtcHoursHelper;
+    if (elapsedHours == 24) {  // how? When refHours and rtc.hours are the same
+      elapsedHours = 0;
+    } else if (elapsedHours > 24) {
+      elapsedHours -= 24;
+    }
+
+    // int hourDifference = myRTC.hours - refHour; // 5 - 4 = 1
+    // if (hourDifference < 0) { // local 18, but launch 19 = -1, or local 15 and launch 20 = -5
+    //   elapsedHours = (23 + (hourDifference)) + hourCorrection;
+    // } else { // difference is > 0 OR 0 // local 18, launch 15, local 1h000, launch 0h00
+    //   if (refHour == 0) {
+    //     elapsedHours = 23 + hourCorrection; // Potentially wrong
+    //   } else {
+    //     elapsedHours = (round(((hourDifference)*60) - elapsedMinutes) / 60) + hourCorrection;
+    //   }
+    // }
+
+
+
+
+
+    // if (hourDifference == 0) {  // 24 hrs have passed // When the hours are the same, this means 23 hrs have passed
+    //   elapsedHours = 23 + hourCorrection;
+    // } else if (hourDifference < 0) {  // local 18, but launch 19 = -1, or local 15 and launch 20 = -5
+    //   elapsedHours = (23 + (hourDifference)) + hourCorrection;
+    // } else {  // difference is > 0 // local 18, launch 15, local 1h000, launch 0h00
+    //   if (refHour == 0) {
+    //     elapsedHours = 23 + hourCorrection;
+    //   } else {
+    //     elapsedHours = (round(((hourDifference)*60) - elapsedMinutes) / 60) + hourCorrection;
+    //   }
+    // }
+
+
+    // int elapsedHours = (round(((abs(myRTC.hours - refHour)) * 60) - elapsedMinutes) / 60) + hourCorrection;
+    //abs(15 - 12) = 3 hours diff * 60 = 180 mins - 18 elapsedMins = 162 mins = 160 mins / 60 mins = 2 hrs + hourCorrection from minute computation
+
+
+    // int elapsedMinutes = (60 - refMinute) + myRTC.minutes;
+
+    // int elapsedSeconds = (myRTC.seconds - refSecond); // ORIGINAL
+    // int elapsedSeconds = (60 - refSecond) + myRTC.seconds;  // ref 51 and current 10 = 19
+    // int minuteCorrection;
+
+    // if (elapsedSeconds == 60) {
+    //   elapsedSeconds = 0;
+    //   minuteCorrection = 1;
+    // } else if (elapsedSeconds > 60) {
+    //   elapsedSeconds -= 60;
+    //   minuteCorrection = 1;
+    // } else {
+    //   minuteCorrection = 0;
+    // }
+
+    // elapsedMinutes += minuteCorrection;
+
+    // Serial.print("\nmyRTC.seconds: " + String(myRTC.seconds));
+    // Serial.print("\nrefSecond: " + String(refSecond));
+    // Serial.print("\nelapsedSeconds: " + String(elapsedSeconds));
+
+    stringElapsedTime = String(setTwoDigits(int(floor(metYears)))) + ":" + setTwoDigits(int(floor(metMonths))) + ":" + setTwoDigits(int(ceil(elapsedDays))) + ":" + setTwoDigits(elapsedHours) + ":" + setTwoDigits(elapsedMinutes) + ":" + setTwoDigits(elapsedSeconds);
   }
 
 
-
-  // if (hourDifference == 0) {  // 24 hrs have passed // When the hours are the same, this means 23 hrs have passed
-  //   elapsedHours = 23 + hourCorrection;
-  // } else if (hourDifference < 0) {  // local 18, but launch 19 = -1, or local 15 and launch 20 = -5
-  //   elapsedHours = (23 + (hourDifference)) + hourCorrection;
-  // } else {  // difference is > 0 // local 18, launch 15, local 1h000, launch 0h00
-  //   if (refHour == 0) {
-  //     elapsedHours = 23 + hourCorrection;
-  //   } else {
-  //     elapsedHours = (round(((hourDifference)*60) - elapsedMinutes) / 60) + hourCorrection;
-  //   }
-  // }
-
-  if (elapsedHours == 24) {  // Is it possible to be > 24?
-    elapsedHours = 0;
-  } else if (elapsedHours > 24) {
-    elapsedHours = elapsedHours - 24;
-  }
-
-  // int elapsedHours = (round(((abs(myRTC.hours - refHour)) * 60) - elapsedMinutes) / 60) + hourCorrection;
-  //abs(15 - 12) = 3 hours diff * 60 = 180 mins - 18 elapsedMins = 162 mins = 160 mins / 60 mins = 2 hrs + hourCorrection from minute computation
-
-
-  // int elapsedMinutes = (60 - refMinute) + myRTC.minutes;
-
-  // int elapsedSeconds = (myRTC.seconds - refSecond); // ORIGINAL
-  // int elapsedSeconds = (60 - refSecond) + myRTC.seconds;  // ref 51 and current 10 = 19
-  // int minuteCorrection;
-
-  // if (elapsedSeconds == 60) {
-  //   elapsedSeconds = 0;
-  //   minuteCorrection = 1;
-  // } else if (elapsedSeconds > 60) {
-  //   elapsedSeconds -= 60;
-  //   minuteCorrection = 1;
-  // } else {
-  //   minuteCorrection = 0;
-  // }
-
-  // elapsedMinutes += minuteCorrection;
-
-  // Serial.print("\nmyRTC.seconds: " + String(myRTC.seconds));
-  // Serial.print("\nrefSecond: " + String(refSecond));
-  // Serial.print("\nelapsedSeconds: " + String(elapsedSeconds));
-
-
-  String MET = String(setTwoDigits(int(floor(metYears)))) + ":" + setTwoDigits(int(floor(metMonths))) + ":" + setTwoDigits(int(ceil(elapsedDays))) + ":" + setTwoDigits(elapsedHours) + ":" + setTwoDigits(elapsedMinutes) + ":" + setTwoDigits(elapsedSeconds);
-  return MET;
+  return stringElapsedTime;
 }
 
 
