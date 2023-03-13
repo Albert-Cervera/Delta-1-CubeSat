@@ -91,6 +91,9 @@ struct missionClockStruct {
   uint8_t hours;
   uint8_t minutes;
   uint8_t seconds;
+  uint8_t day;
+  uint8_t month;
+  int year;
 } rtcData;
 
 // Inititialization of instruments
@@ -452,11 +455,22 @@ function that executes whenever data is requested by master.
 Registered as event, this function returns RTC data to SAT_A.
 */
 void requestEvent() {
+  
+  // Serial.print("\nmyRTC.year: " + String(myRTC.year));
+
   myRTC.updateTime();
   rtcData.hours = myRTC.hours;
   rtcData.minutes = myRTC.minutes;
   rtcData.seconds = myRTC.seconds;
+  rtcData.day = myRTC.dayofmonth;
+  rtcData.month = myRTC.month;
+  rtcData.year = myRTC.year;
+
+  // Serial.print("\nrtcData.year: " + String(rtcData.year));
+
   Wire.write((byte *)&rtcData, sizeof rtcData);
+
+  
 }
 
 /* receiveEvent()

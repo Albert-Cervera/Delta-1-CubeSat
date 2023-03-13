@@ -64,8 +64,8 @@ RH_ASK rf_driver(2000, A3, 9, 0);  // speed in bps, rxPin, txPin, pttPin <-- Sen
 #define BME_CS 10  // CSB
 
 //Variables
-int spacecraftMode = 4;  // Modes -> 0: Safe Mode, 1: ESM, 2: RTW, 3: RTI, 4: RTWI
-int lastMode = 4; // should be same as spacecraftMode when compiling
+int spacecraftMode = 4;     // Modes -> 0: Safe Mode, 1: ESM, 2: RTW, 3: RTI, 4: RTWI
+int lastMode = 4;           // should be same as spacecraftMode when compiling
 float pressureGroundLevel;  // Current pressure when CubeSat started
 float pitch, roll, yaw;     // Inertial Measurement Unit variables
 
@@ -107,7 +107,21 @@ struct missionClockStruct {
   uint8_t hours;
   uint8_t minutes;
   uint8_t seconds;
+  uint8_t day;
+  uint8_t month;
+  int year;
 } rtcData;
+
+// struct uptimeClockStruct {
+//   uint8_t launchDay;
+//   uint8_t launchMonth;
+//   int launchYear;
+//   uint8_t launchHour;
+//   uint8_t launchMinute;
+//   uint8_t launchSecond;
+// } systemUptime;
+
+int initDay, initMonth, initYear, initHour, initMinute, initSecond;
 
 // INITIALIZATION OF SENSORS
 DHT dht(DHTPIN, DHTTYPE);     // Initialize DHT sensor for normal 16mhz Arduino
@@ -125,20 +139,37 @@ void setup() {
 
   bool bmp280_status = bme.begin();
   if (!bmp280_status) {
-    Serial.println("BARO_ERR");  // Maybe rise a flag and activate safe mode in case of failure
+    Serial.println("M1");  //M1 = BARO_ERR. Maybe rise a flag and activate safe mode in case of failure
     while (1) {};
   }
 
   int mpu9250_status = IMU.begin();
   if (mpu9250_status < 0) {
-    Serial.println("IMU_ERR");  // Maybe rise a flag and activate safe mode in case of failure
+    Serial.println("M2");  //M2 = IMU_ERR. Maybe rise a flag and activate safe mode in case of failure
     while (1) {}
   }
 
   resetPressureGroundLevel();  // Read ground level pressure when initiating board
-  Wire.begin();                // join I2C bus (address optional for master)
+
+  
+  // Ask SAT_B for mission clock time via I2C
+  Wire.requestFrom(8, 8);                            // request 8 bytes from peripheral device #8 (device#, bytes) TODO: check the correct amount of bytes to receive
+  Wire.readBytes((byte *)&rtcData, sizeof rtcData);  // 6 bytes
+
+  // rtcData.minute return setTwoDigits(myRTC.dayofmonth) + "/" + setTwoDigits(myRTC.month) + "/" + String(myRTC.year);
+
+  initHour = rtcData.hours;
+  initMinute = rtcData.minutes;
+  initSecond = rtcData.seconds;
+  initDay = rtcData.day;
+  initMonth = rtcData.month;
+  initYear = rtcData.year;
+
+  // Serial.print("\ninitYear: " +  String(initYear));
+
+  Wire.begin();  // join I2C bus (address optional for master)
   rf_driver.init();
-  delay(3200); // Wait x seconds so SAT_B gets GPS time
+  delay(3200);  // Wait x seconds so SAT_B gets GPS time
 }
 
 void loop() {
@@ -146,6 +177,7 @@ void loop() {
   checkTriggerSM(lastMode);  // Safe mode trigger condition checking
   systemData.mode = spacecraftMode;
 
+  // Modes -> 0: Safe Mode, 1: ESM, 2: RTW, 3: RTI, 4: RTWI
   switch (spacecraftMode) {
     case 0:  // Safe Mode
       {
@@ -207,7 +239,7 @@ void loop() {
       {
         // Extended Science Mission (ESM) mode (default)
         // Only mode with RTC-GPS synchronization
-      
+
         /* NOTE: take into account the  total MS time (routine + sleep)
         routine: 20 ms + 10 seconds
         Sleep: 10 mins, 1 sec
@@ -235,13 +267,13 @@ void loop() {
         lastMode = spacecraftMode;
 
         // Ask SAT_B for mission clock time via I2C
-        Wire.requestFrom(8, 6);                            // request 6 bytes from peripheral device #8 (device#, bytes)
+        Wire.requestFrom(8, 8);                            // request 8 bytes from peripheral device #8 (device#, bytes)
         Wire.readBytes((byte *)&rtcData, sizeof rtcData);  // 6 bytes
         // Ensures reading of all bytes from stream
         while (Wire.available()) {
           Wire.read();
         }
-        
+
         // NOTE: real sync should be at rtcData.hours == 06h00, 12h00, 18h00, 00h00
         /* 
           NOTES: 
@@ -254,9 +286,9 @@ void loop() {
           */
         // if (rtcData.minutes == 0 || rtcData.minutes == 5 || rtcData.minutes == 10 || tcData.minutes == 15) {
         //   sendDataI2C(8);  // Send update RTC with GPS command to peripheral
-          
+
         // }
-        
+
         if (rtcData.minutes == 0 || rtcData.minutes == 10 || rtcData.minutes == 20 || rtcData.minutes == 30 || rtcData.minutes == 40 || rtcData.minutes == 50) {
           // Make sure that only when time is on '0 seconds', execute and save data (gives consistency)
           if (rtcData.seconds == 0) {
@@ -267,7 +299,7 @@ void loop() {
             localAltitude = getLocalAltitude();
             computePitchRollYaw();
 
-            // could be a function 'updateVals()' but then hum, temp, etc, should be global vars
+            // Could be a function 'updateVals()' but then hum, temp, etc, should be global vars
             telemetryData.humidity = hum;
             telemetryData.temperature = temp;
             telemetryData.pressure = baro;
@@ -277,8 +309,8 @@ void loop() {
             telemetryData.yaw = yaw;
 
             // Send telemetryData via I2C to peripheral slave for data saving
-            sendDataI2C(4); // SUDO save telemetry data
-            sendDataI2C(5); // SUDO save system data
+            sendDataI2C(4);  // SUDO save telemetry data
+            sendDataI2C(5);  // SUDO save system data
 
             // Transmitting 3 seconds
             unsigned long startTime = millis();
@@ -318,7 +350,7 @@ void loop() {
 
             // Send sleep command to SAT_B and then sleep spacecraft
             sendDataI2C(6);  // Send sleep command to peripheral (9 mins, 4 seconds calculated) and/or sync RTC with GPS
-            deepSleep(2);    // sleep SAT_A 9 mins, 50 sec                  
+            deepSleep(2);    // sleep SAT_A 9 mins, 50 sec
 
           }       // end (if seconds == 0)
         } else {  // end (if minutes == 0,10,20,...,50)
@@ -416,7 +448,7 @@ void loop() {
   }
 
   if (spacecraftMode != 0 && spacecraftMode != 1) {
-    // Send telemetryData via I2C to peripheral slave. 1: telemetry data, 2 system data
+    // Send telemetryData via I2C to peripheral slave. 1: telemetry data, 2 system data (not SUDO)
     sendDataI2C(1);
     sendDataI2C(2);
     transmitData();
@@ -429,9 +461,18 @@ void loop() {
 void transmitData() {
   // Auxiliar struct to send all data (max size: 60 bytes)
   struct telemetryStruct {
+    // System data:
     int mode = systemData.mode;
     float voltage = systemData.voltage;
     float internalTemp = systemData.internalTemp;
+    // initMinute
+    int bootDay = initDay;
+    int bootMonth = initMonth;
+    int bootYear = initYear;
+    int bootHour = initHour;
+    int bootMinute = initMinute;
+    int bootSecond = initSecond;
+    // Science payload data:
     float humidity = telemetryData.humidity;
     float temperature = telemetryData.temperature;
     float pressure = telemetryData.pressure;
@@ -441,7 +482,7 @@ void transmitData() {
     float yaw = telemetryData.yaw;
   } transferData;
 
-  byte tran_buf[sizeof(transferData)] = { 0 };  // buffer for sending telemetry data
+  byte tran_buf[sizeof(transferData)] = { 0 };  // Buffer for sending telemetry data
   memcpy(tran_buf, &transferData, sizeof(transferData));
   byte zize = sizeof(transferData);
   rf_driver.send((uint8_t *)tran_buf, zize);
@@ -626,7 +667,7 @@ void executeCommand(float command) {
     spacecraftMode = 1;
     systemData.mode = spacecraftMode;
     delay(5000);
-    transmitData(); // To ack
+    transmitData();             // To ack
   } else if (command == 2.0) {  // Reset local altitude
     resetPressureGroundLevel();
     // spacecraftMode = 1; // return to default (?)
