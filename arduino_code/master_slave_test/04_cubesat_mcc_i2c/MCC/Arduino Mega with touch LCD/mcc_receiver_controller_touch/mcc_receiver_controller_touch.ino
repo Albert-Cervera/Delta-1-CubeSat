@@ -233,7 +233,7 @@ struct telemetryStruct {
   float yaw;
 } telemetryData;
 
-// 6 bytes size and 2 elements (3 bytes each(?))
+// 10 bytes size and 3 elements
 struct dataStruct {
   int mode;
   float voltage;
@@ -246,6 +246,30 @@ int initDay, initMonth, initYear, initHour, initMinute, initSecond;
 struct commandStruct {
   float op;
 } commandData;
+
+// Auxiliar struct to copy ALL data received from CubeSat into a single struct.
+// Then assign it to local systemDSata and telemetryData structs.
+// Size: 50 bytes
+struct transferStruct {
+  // System data:
+  int mode;
+  float voltage;
+  float internalTemp;
+  int bootDay;
+  int bootMonth;
+  int bootYear;
+  int bootHour;
+  int bootMinute;
+  int bootSecond;
+  // Science payload data:
+  float humidity;
+  float temperature;
+  float pressure;
+  float localAltitude;  // altitude in meters from ground (not MSL)
+  float pitch;
+  float roll;
+  float yaw;
+} transferData;
 
 byte tx_buf[sizeof(commandData)] = { 0 };  // buffer for sending command data
 
@@ -297,13 +321,13 @@ void setup() {
   awakeend = sleeptime + 1000;  // set the current sleep time based on what the saved settings in EEPROM were
   pinMode(backlight, OUTPUT);
   Serial.println("AOS");
-  Serial.println("Albert Cervera  -  2023");
-  Serial.print("TFT size is ");
-  Serial.print(tft.width());
-  Serial.print("x");
-  Serial.println(tft.height());
-  Serial.println("sleeptime: ");
-  Serial.println(sleeptime);
+  // Serial.println("Albert Cervera  -  2023");
+  // Serial.print("TFT size is ");
+  // Serial.print(tft.width());
+  // Serial.print("x");
+  // Serial.println(tft.height());
+  // Serial.println("sleeptime: ");
+  // Serial.println(sleeptime);
 
   tft.reset();
 
@@ -425,35 +449,25 @@ void loop() {
   int8_t buf[RH_ASK_MAX_MESSAGE_LEN];  // Set it to maximum size of 60 bytes, but not the actual expected size
   uint8_t buflen = sizeof(buf);
 
-  // Auxiliar struct to copy ALL data received from CubeSat into a single struct.
-  // Then assign it to local systemDSata and telemetryData structs.
-
-  struct transferStruct {
-    // System data:
-    int mode;
-    float voltage;
-    float internalTemp;
-    int bootDay;
-    int bootMonth;
-    int bootYear;
-    int bootHour;
-    int bootMinute;
-    int bootSecond;
-    // Science payload data:
-    float humidity;
-    float temperature;
-    float pressure;
-    float localAltitude;  // altitude in meters from ground (not MSL)
-    float pitch;
-    float roll;
-    float yaw;
-  } transferData;
+  // Transfer data was declared here (transferStruct)
+  
+  // Serial.print("\nM1");
 
   // Non-blocking
-  if (rf_driver.recv(buf, &buflen) == 1) {
-    // If data received ...
+  // If data received ...
+  if (rf_driver.recv(buf, &buflen) == 1) {    
 
-    // Serial.print("\n[OK] Data rcvd from CubeSat\n");
+    // Serial.print("\n[OK] Data rcvd from CubeSat");
+
+    /*
+      00:06:04.149 -> [OK] Data rcvd from CubeSat
+      00:06:17.040 -> [OK] Data rcvd from CubeSat
+      00:06:20.967 -> [OK] Data rcvd from CubeSat
+      00:06:47.023 -> [OK] Data rcvd from CubeSat
+      00:06:50.946 -> [OK] Data rcvd from CubeSat
+      00:07:20.987 -> [OK] Data rcvd from CubeSat
+    */
+
     rcvdTx = true;
     rcvdTime = getTimestampTime();
 
@@ -594,24 +608,25 @@ void loop() {
     // String timestampDate = getTimestampDate();
     // Serial.print(", " + timestampDate);
   }
+  
 
   // UI configuration ------------------------------------------------------------
 
-  currenttime = millis();
-  unsigned long currentawake = millis();
-  if ((currentawake > awakeend) && (sleepnever == 0)) {
-    if (sleep == 0) {
-      for (i = blv; i >= 0; i -= 1) {
-        analogWrite(backlight, i);
-        delay(4);
-      }
-      sleep = 1;
-    }
-  }
+  // currenttime = millis();
+  // unsigned long currentawake = millis();
+  // if ((currentawake > awakeend) && (sleepnever == 0)) {
+  //   if (sleep == 0) {
+  //     for (i = blv; i >= 0; i -= 1) {
+  //       analogWrite(backlight, i);
+  //       delay(4);
+  //     }
+  //     sleep = 1;
+  //   }
+  // }
 
-  digitalWrite(13, HIGH);  // added
+  // digitalxWrite(13, HIGH);  // added
   TSPoint p = ts.getPoint();
-  digitalWrite(13, LOW);  // added
+  // digitalWrite(13, LOW);  // added
 
 
   // if you're sharing pins, you'll need to fix the directions of the touchscreen pins!
@@ -634,8 +649,6 @@ void loop() {
     //   return;
     // }
 
-
-
     // Serial.print("X = ");
     // Serial.print(p.x);
     // Serial.print("\tY = ");
@@ -644,11 +657,9 @@ void loop() {
     // Serial.println(p.z);
 
 
-
     // turn from 0->1023 to tft.width
     p.x = map(p.x, TS_MINX, TS_MAXX, 240, 0);
     p.y = map(p.y, TS_MINY, TS_MAXY, tft.height(), 0);
-
 
     // Serial.print("p.y:");  // this code will help you get the y and x numbers for the touchscreen
     // Serial.print(p.y);
@@ -1168,11 +1179,11 @@ void loop() {
     }
   }
 
-  // Battery check
-  if (currenttime - prevbatt > battcheck) {
-    // drawBatt(); // at void loop()
-    prevbatt = currenttime;
-  }
+  // // Battery check
+  // if (currenttime - prevbatt > battcheck) {
+  //   // drawBatt(); // at void loop()
+  //   prevbatt = currenttime;
+  // }
 
   // Mission Clock update
   String currentTime = getTimestampTime();
@@ -1188,9 +1199,7 @@ void loop() {
     }
   }
 
-
-  // delay(250);  // from MCC code (Menu test didn't had this)
-  //delay(1000);  // Just for seeing the clock
+  
 }  // end void loop()
 
 // *****************************************************************************

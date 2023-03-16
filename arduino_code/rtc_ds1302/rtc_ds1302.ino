@@ -7,7 +7,9 @@ void setup() {
   // Set the current date, and time in the following format:
   // seconds, minutes, hours, day of the week, day of the month, month, year (monday is day 1, sunday is 7)  
   // myRTC.setDS1302Time(00, 26, 17, 5, 30, 11, 2022);
-  // myRTC.setDS1302Time(00, 27, 17, 3, 28, 12, 2022); // SS, MM, HH, DW, DD, MM, YYYY
+  // myRTC.setDS1302Time(00, 36, 4, 1, 14, 3, 2023); // SS, MM, HH, DW, DD, MM, YYYY
+
+  // Upload the code when reference clock's second 56 is about to hit
 }
 
 void loop() {

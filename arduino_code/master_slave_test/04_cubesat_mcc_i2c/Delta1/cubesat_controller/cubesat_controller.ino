@@ -90,7 +90,7 @@ struct telemetryStruct {
   float yaw;
 } telemetryData;
 
-// 8 bytes size and 2 elements (float: 4 bytes, int: 2 bytes)
+// 10 bytes size and 3 elements (float: 4 bytes, int: 2 bytes)
 struct dataStruct {
   int mode;
   float voltage;
@@ -103,6 +103,7 @@ struct commandStruct {
   float op;
 } commandData;
 
+// Size 7 bytes
 struct missionClockStruct {
   uint8_t hours;
   uint8_t minutes;
@@ -111,15 +112,6 @@ struct missionClockStruct {
   uint8_t month;
   int year;
 } rtcData;
-
-// struct uptimeClockStruct {
-//   uint8_t launchDay;
-//   uint8_t launchMonth;
-//   int launchYear;
-//   uint8_t launchHour;
-//   uint8_t launchMinute;
-//   uint8_t launchSecond;
-// } systemUptime;
 
 int initDay, initMonth, initYear, initHour, initMinute, initSecond;
 
@@ -139,25 +131,27 @@ void setup() {
 
   bool bmp280_status = bme.begin();
   if (!bmp280_status) {
-    Serial.println("M1");  //M1 = BARO_ERR. Maybe rise a flag and activate safe mode in case of failure
+    Serial.println("E1");  //E1 = BARO_ERR. Maybe rise a flag and activate safe mode in case of failure
     while (1) {};
   }
 
   int mpu9250_status = IMU.begin();
   if (mpu9250_status < 0) {
-    Serial.println("M2");  //M2 = IMU_ERR. Maybe rise a flag and activate safe mode in case of failure
+    Serial.println("E2");  //E2 = IMU_ERR. Maybe rise a flag and activate safe mode in case of failure
     while (1) {}
   }
 
   resetPressureGroundLevel();  // Read ground level pressure when initiating board
 
-  
   // Ask SAT_B for mission clock time via I2C
-  Wire.requestFrom(8, 8);                            // request 8 bytes from peripheral device #8 (device#, bytes) TODO: check the correct amount of bytes to receive
-  Wire.readBytes((byte *)&rtcData, sizeof rtcData);  // 6 bytes
+  Wire.requestFrom(8, 7); // request 7 bytes from peripheral device #8 (device#, bytes) TODO: check the correct amount of bytes to receive
+  Wire.readBytes((byte *)&rtcData, sizeof rtcData);
+  // // Ensures reading of all bytes from stream
+  while (Wire.available()) {
+    Wire.read();
+  }
 
-  // rtcData.minute return setTwoDigits(myRTC.dayofmonth) + "/" + setTwoDigits(myRTC.month) + "/" + String(myRTC.year);
-
+  // Serial.print("\nsizeof rtcData): " + String(sizeof rtcData)); // 7 bytes
   initHour = rtcData.hours;
   initMinute = rtcData.minutes;
   initSecond = rtcData.seconds;
@@ -165,11 +159,9 @@ void setup() {
   initMonth = rtcData.month;
   initYear = rtcData.year;
 
-  // Serial.print("\ninitYear: " +  String(initYear));
-
   Wire.begin();  // join I2C bus (address optional for master)
   rf_driver.init();
-  delay(3200);  // Wait x seconds so SAT_B gets GPS time
+  delay(3200);  // Wait x seconds so SAT_B gets GPS time //3200
 }
 
 void loop() {
@@ -267,12 +259,17 @@ void loop() {
         lastMode = spacecraftMode;
 
         // Ask SAT_B for mission clock time via I2C
-        Wire.requestFrom(8, 8);                            // request 8 bytes from peripheral device #8 (device#, bytes)
-        Wire.readBytes((byte *)&rtcData, sizeof rtcData);  // 6 bytes
+        Wire.requestFrom(8, 7);                            // request 7 bytes from peripheral device #8 (device#, bytes) (6 bytes before initDay etc)
+        Wire.readBytes((byte *)&rtcData, sizeof rtcData);
         // Ensures reading of all bytes from stream
         while (Wire.available()) {
           Wire.read();
         }
+
+        // Serial.print("\nESM, rtcData.minutes: " + String(rtcData.minutes));
+
+        Serial.print("\nM1: " + String(rtcData.minutes));
+        
 
         // NOTE: real sync should be at rtcData.hours == 06h00, 12h00, 18h00, 00h00
         /* 
@@ -289,10 +286,25 @@ void loop() {
 
         // }
 
-        if (rtcData.minutes == 0 || rtcData.minutes == 10 || rtcData.minutes == 20 || rtcData.minutes == 30 || rtcData.minutes == 40 || rtcData.minutes == 50) {
-          // Make sure that only when time is on '0 seconds', execute and save data (gives consistency)
-          if (rtcData.seconds == 0) {
+        /*
+          It looks like SAT_A and SAT_B are waking up late, after the first sleep,
+          hence avoiding the 'if (rtcData.seconds == 0) {' statement:
 
+          22:40:03.643 -> 
+          22:40:03.643 -> M1: 40
+          22:40:03.643 -> M2: 5
+          22:40:04.535 -> M1: 40
+          22:40:04.535 -> M2: 5
+
+        */
+
+        // if (rtcData.minutes == 17 || rtcData.minutes == 18 || rtcData.minutes == 19 || rtcData.minutes == 20 || rtcData.minutes == 21 || rtcData.minutes == 50) {
+        if (rtcData.minutes == 0 || rtcData.minutes == 10 || rtcData.minutes == 20 || rtcData.minutes == 30 || rtcData.minutes == 40 || rtcData.minutes == 50) {
+          // Make sure that only when time is on '0 seconds', execute and save data (gives consistency)          
+          Serial.print("\nM2: " + String(rtcData.seconds));
+
+          if (rtcData.seconds >= 0 && rtcData.seconds <= 10) { // rtcData.seconds == 0
+            
             hum = dht.readHumidity();
             temp = dht.readTemperature();
             baro = (bme.readPressure() / 100.0F);
@@ -308,36 +320,44 @@ void loop() {
             telemetryData.roll = roll;
             telemetryData.yaw = yaw;
 
+            
             // Send telemetryData via I2C to peripheral slave for data saving
             sendDataI2C(4);  // SUDO save telemetry data
-            sendDataI2C(5);  // SUDO save system data
+            sendDataI2C(5);  // SUDO save system data                        
 
-            // Transmitting 3 seconds
+            // Transmitting 3 seconds // Changing it to 7 secs
             unsigned long startTime = millis();
             unsigned long endTime = startTime;
-            while ((endTime - startTime) <= 3000) {
+            while ((endTime - startTime) <= 6000) { // Increase it so MCC listens
               transmitData();
+              // delay(450); // To see :(
+              delay(250);
               endTime = millis();
             }
+            Serial.print("\n M3");
 
-            // Listen 7 seconds for incomming MCC commands
+            // Listen 7/5 seconds for incomming MCC commands
             int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
             uint8_t buflen = sizeof(buf);
 
             startTime = millis();
             endTime = startTime;
 
-            while ((endTime - startTime) <= 7000) {  // Listen radio for 7,000 ms while transmitting ack
+            while ((endTime - startTime) <= 4000) {  // Listen radio for 7,000 ms while transmitting ack (or 5k ms)
               if (rf_driver.recv(buf, &buflen) == 1) {
+                
+                Serial.print("\n M4"); // It is being triggered even though no signal is sent from MCC
+
                 memcpy(&commandData, buf, sizeof(commandData));
                 executeCommand(commandData.op);
 
                 // Transmit an ack message for X seconds (could be the same telemetry data with the SC mode)
                 unsigned long startTime2 = millis();
                 unsigned long endTime2 = startTime2;
-                while ((endTime2 - startTime2) <= 5500) {  // Transmit ack for 5,500 ms
+                while ((endTime2 - startTime2) <= 5000) {  // Transmit ack for 5,500 ms // 5k
                   systemData.mode = spacecraftMode;        // Update with new mode
                   transmitData();
+                  delay(250);
                   endTime2 = millis();
                 }
                 break;  // end 'if' and break while loop
@@ -455,7 +475,8 @@ void loop() {
     listenReceiver();
   }
 
-  delay(250);  // <- delay void loop
+  // delay(500);
+  delay(250);  // <- delay void loop // 250 // 450: and MCC receives every 3 secs
 }  // end void loop
 
 void transmitData() {
@@ -465,7 +486,7 @@ void transmitData() {
     int mode = systemData.mode;
     float voltage = systemData.voltage;
     float internalTemp = systemData.internalTemp;
-    // initMinute
+    // Boot time data
     int bootDay = initDay;
     int bootMonth = initMonth;
     int bootYear = initYear;
@@ -482,11 +503,14 @@ void transmitData() {
     float yaw = telemetryData.yaw;
   } transferData;
 
-  byte tran_buf[sizeof(transferData)] = { 0 };  // Buffer for sending telemetry data
-  memcpy(tran_buf, &transferData, sizeof(transferData));
+  // byte tran_buf[sizeof(transferData)] = { 0 };  // Buffer for sending telemetry data
+  // memcpy(tran_buf, &transferData, sizeof(transferData));
   byte zize = sizeof(transferData);
-  rf_driver.send((uint8_t *)tran_buf, zize);
-  rf_driver.waitPacketSent();
+  // rf_driver.send((uint8_t *)tran_buf, zize);
+  rf_driver.send((uint8_t *)&transferData, zize);
+  rf_driver.waitPacketSent();  
+  Serial.print("\nTX");
+  // delay(450);
 }
 
 void listenReceiver() {
@@ -553,7 +577,7 @@ void sendDataI2C(int type) {
       auxiliarData.val6 = 0.0;
       auxiliarData.val7 = 0.0;
       break;
-    case 4:                     // Send telemetry data as SUDO (ESM)
+    case 4:  // Send telemetry data as SUDO (ESM)
       auxiliarData.header = 4;  // SUDO save telemetry data: Don't check validTime on SAT_B
       auxiliarData.val1 = telemetryData.humidity;
       auxiliarData.val2 = telemetryData.temperature;
@@ -573,7 +597,7 @@ void sendDataI2C(int type) {
       auxiliarData.val6 = 0.0;
       auxiliarData.val7 = 0.0;
       break;
-    case 6:                     // Order SAT_B to activate sleep mode
+    case 6:  // Order SAT_B to activate sleep mode
       auxiliarData.header = 6;  // activate sleep mode on SAT_B
       auxiliarData.val1 = 0.0;
       auxiliarData.val2 = 0.0;
@@ -593,7 +617,7 @@ void sendDataI2C(int type) {
 
 void deepSleep(int flag) {
   /* Deep Sleep Mode
-  Enters power down state for 10 minutes, 1 sec with ADC and BOD modeules disabled.
+  Enters power down state for 10 minutes, 1 sec with ADC and BOD modules disabled.
   
   For loop approach -----------------------------------------------
   Current: 0.0703A
@@ -636,7 +660,7 @@ void deepSleep(int flag) {
 
   // delay(20);  // 25 good || 15 = Going to slee�, 10 = Going to, then sleeps and then �����...
   int loop;
-  if (flag == 1) {
+  if (flag == 1) { // Seems like is not being used
     loop = 83;  // for 10 mins, 1 sec
   } else if (flag == 2) {
     loop = 81;  // GOAL: for 9 mins, 50 secs // 77 = 9 mins, 18
@@ -658,8 +682,8 @@ void executeCommand(float command) {
   16:40:02.920 -> Command received: 1.00 // <-- When running ESM loop without MCC sending command
   */
 
-  Serial.print("\nCommand received: ");
-  Serial.print(command);
+  // Serial.print("\nCommand received: ");
+  // Serial.print(command);
 
   if (command == 0.0) {  // Safe Mode (MCC shouldn't be able to trigger this mode)
     // spacecraftMode = 0; // perhaps I shouldn't have this line (since anyone could send command 0 and trigger it)

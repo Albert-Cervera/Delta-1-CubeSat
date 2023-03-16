@@ -62,7 +62,9 @@
 int lastSecondSavedTel, lastMinuteSavedTel;
 int lastSecondSavedSys, lastMinuteSavedSys;
 // String latitude, longitude, altitude;
-bool startSync = false;
+
+bool startSync = false; // For RTC-GPS sync
+bool synced = false;
 
 /*
 auxiliarStruct: the idea is to copy every received struct
@@ -91,6 +93,7 @@ struct missionClockStruct {
   uint8_t hours;
   uint8_t minutes;
   uint8_t seconds;
+  // 6 bytes until 'seconds'
   uint8_t day;
   uint8_t month;
   int year;
@@ -264,6 +267,7 @@ void setup() {
   }
   Serial.print("SD_OK");
   ss.begin(9600);  // initialize GPS module at GPSBaud 9600
+  // Serial.print("\nsizeof rtcData): " + String(sizeof rtcData)); // 7
 }
 
 void loop() {
@@ -280,7 +284,7 @@ void loop() {
   and when is valid time to sync, then sync
   */
   if (startSync) {
-    syncGPSDateTime();  // check if SAT_B still falls asleep
+    syncGPSDateTime(true);  // check if SAT_B still falls asleep
     startSync = false;
 
     // String timestamp = getTimestampTime();
@@ -335,12 +339,21 @@ bool validTimeToSave(int flag) {
   return false;
 }
 
-// Checks if is the correct UTC time to initiate RTC-GPS synchronization
+// Checks if is the correct UTC time to initiate RTC-GPS synchronization // ORIGINAL
+// bool validTimeToSync() {
+//   if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) {
+//     // if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
+//     return true;
+//   } else {
+//     return false;
+//   }
+// }
+
 bool validTimeToSync() {
-  if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) {
-    // if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
+  if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00 && synced == false) {
     return true;
   } else {
+    synced = false;
     return false;
   }
 }
@@ -544,7 +557,7 @@ void deepSleep() {
 // void (*resetFunc)(void) = 0;
 
 // Gets UTC time via GPS and syncs RTC
-void syncGPSDateTime() {
+void syncGPSDateTime(bool strictMode) {
   TinyGPSPlus gps;  // The TinyGPS++ object
 
   int day, month, year, hour, minute, second;
@@ -553,53 +566,121 @@ void syncGPSDateTime() {
   unsigned long endTime = startTime;
   bool gpsDate, gpsTime = false;
 
-  // 9 mins = 540 secs
-  while ((endTime - startTime) <= 540000) {
+  // 9 mins = 540 secs = 540000 ms
+  // 3 mins = 180 secs = 180000 ms
+  while ((endTime - startTime) <= 180000) {  // Try to sync 3 mins
     if (ss.available() > 0) {
       if (gps.encode(ss.read())) {
 
-        if (gps.date.isValid()) {
-          day = gps.date.day();
-          month = gps.date.month();
-          year = gps.date.year();
-          gpsDate = true;
-        }
+        if (strictMode == true) {
 
-        if (gps.time.isValid()) {
-          hour = gps.time.hour();
-          minute = gps.time.minute();
-          second = gps.time.second();
-          gpsTime = true;
-        }
+          // Strict Mode: Requires a fixed location to sync time
+          if (gps.location.isValid()) {
 
-        // Serial.print("\nTime: ");
-        // Serial.print(hour);
-        // Serial.print(":");
-        // Serial.print(minute);
-        // Serial.print(":");
-        // Serial.print(second);
+            if (gps.date.isValid()) {
+              day = gps.date.day();
+              month = gps.date.month();
+              year = gps.date.year();
+              gpsDate = true;
+            }
 
-        // Serial.print(" , Date: ");
-        // Serial.print(day);
-        // Serial.print("/");
-        // Serial.print(month);
-        // Serial.print("/");
-        // Serial.print(year);
+            if (gps.time.isValid()) {
+              hour = gps.time.hour();
+              minute = gps.time.minute();
+              second = gps.time.second();
+              gpsTime = true;
+            }
 
-        if (gpsDate && gpsTime) {
-          if (day > 0 && day <= 31 && month <= 12 && year == 2023) {
-            // Update RTC with GPS UTC time
-            myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
-            break;
+            if (gpsDate && gpsTime) {
+              if (day > 0 && day <= 31 && month <= 12 && year >= 2023) {
+                // Update RTC with GPS UTC time
+                myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
+                synced = true;                
+                break;
+              }
+            }
+
+          }  // End if location
+
+        } else {
+
+          // Loose Mode: Syncs with whatever value Satellites provides
+          if (gps.date.isValid()) {
+            day = gps.date.day();
+            month = gps.date.month();
+            year = gps.date.year();
+            gpsDate = true;
           }
-        }
+
+          if (gps.time.isValid()) {
+            hour = gps.time.hour();
+            minute = gps.time.minute();
+            second = gps.time.second();
+            gpsTime = true;
+          }
+
+
+          if (gpsDate && gpsTime) {
+            if (day > 0 && day <= 31 && month <= 12 && year >= 2023) {
+              // Update RTC with GPS UTC time
+              myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
+              synced = true;              
+              break;
+            }
+          }
+        }  // End else
 
       }  // end if gps.encode(ss.read())
     }    // end if ss.available()
 
     endTime = millis();
-  }  // end while 9 mins
+  }  // end while 3 or 9 mins
 }
+
+
+// Gets UTC time via GPS and syncs RTC // ORIGINAL FUNCTION
+// void syncGPSDateTime() {
+//   TinyGPSPlus gps;  // The TinyGPS++ object
+
+//   int day, month, year, hour, minute, second;
+//   // String latitude, longitude, altitude;
+//   unsigned long startTime = millis();
+//   unsigned long endTime = startTime;
+//   bool gpsDate, gpsTime = false;
+
+//   // 9 mins = 540 secs
+//   while ((endTime - startTime) <= 540000) {
+//     if (ss.available() > 0) {
+//       if (gps.encode(ss.read())) {
+
+//         if (gps.date.isValid()) {
+//           day = gps.date.day();
+//           month = gps.date.month();
+//           year = gps.date.year();
+//           gpsDate = true;
+//         }
+
+//         if (gps.time.isValid()) {
+//           hour = gps.time.hour();
+//           minute = gps.time.minute();
+//           second = gps.time.second();
+//           gpsTime = true;
+//         }
+
+//         if (gpsDate && gpsTime) {
+//           if (day > 0 && day <= 31 && month <= 12 && year == 2023) {
+//             // Update RTC with GPS UTC time
+//             myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
+//             break;
+//           }
+//         }
+
+//       }  // end if gps.encode(ss.read())
+//     }    // end if ss.available()
+
+//     endTime = millis();
+//   }  // end while 9 mins
+// }
 
 /*
 // Gets latitude, longitude and altitude data from GPS
