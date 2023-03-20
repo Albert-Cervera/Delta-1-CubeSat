@@ -130,8 +130,8 @@ void setup() {
   lcd.clear();
   systemData.mode = -1;  // To differentiate actual '0 mode' vs no data received.
   lastDataReceived = 0;
-  key = 'C'; // A
-  lastKey = 'C'; // A
+  key = 'D'; // A
+  lastKey = 'D'; // A
 
   // Initialize ASK Object
   rf_driver.init();

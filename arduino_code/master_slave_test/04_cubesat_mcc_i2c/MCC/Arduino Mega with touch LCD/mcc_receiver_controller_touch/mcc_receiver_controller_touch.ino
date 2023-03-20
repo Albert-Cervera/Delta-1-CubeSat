@@ -176,9 +176,11 @@ int lastMinuteSavedESMTel;
 bool startSync = false;  // For RTC-GPS sync
 bool synced = false;
 bool rcvdTx;
+bool isSafeMode;                 // Bool indicating if Safe Mode has been detected on spacecraft
 uint32_t losTolerance = 630000;  // 630000, Loss of Signal tolerance in ms //630 sec = 10 min, 30 sec
 float heatIndex;
 int dataMode = 1;
+int lastSatelliteMode;  // To determine if it was in SM before
 
 // For MET calculations
 
@@ -206,21 +208,6 @@ uint8_t launchHour = 12;    // 12 original
 uint8_t launchMinute = 56;  // 56 original
 uint8_t launchSecond = 0;   // 0 original
 
-/*
-  17:55:52.719 -> refHour: 22
-  17:55:52.752 -> refMinute: 40
-  17:55:52.752 -> refSecond: 51
-  17:55:52.783 -> refDay: 12
-  17:55:52.783 -> refMonth: 3
-  17:55:52.783 -> refYear: 2023
-  17:56:31.707 -> -------------------------------
-  17:56:31.739 -> refHour: 12
-  17:56:31.739 -> refMinute: 56
-  17:56:31.772 -> refSecond: 0
-  17:56:31.772 -> refDay: 5
-  17:56:31.772 -> refMonth: 9
-  17:56:31.805 -> refYear: 1977
-  */
 
 // 28 bytes size and 7 elements (4 bytes each(?))
 struct telemetryStruct {
@@ -415,6 +402,7 @@ void setup() {
 
   // MCC configuration -----------------------------------------------------------
   systemData.mode = -1;  // To differentiate actual '0 mode' vs no data received.
+  lastSatelliteMode = -1;
   lastDataReceived = 0;
   rf_driver.init();  // Initialize ASK Object
   referenceTime = getTimestampTime();
@@ -506,6 +494,28 @@ void loop() {
     //   losTolerance = 5000;
     // }
 
+    if (systemData.mode == 0) {
+      // Safe mode detected
+      isSafeMode = true;
+      clearMessageStatusBar(isSafeMode);
+      tft.setCursor(1, 1);
+      tft.setTextSize(1);
+      tft.setTextColor(BLACK);
+      tft.println("[!!!] SAFE MODE               Delta-1 Mission");
+    } else {
+      if (systemData.mode != 0 && lastSatelliteMode == 0) {
+        isSafeMode = false;
+        clearMessageStatusBar(isSafeMode);
+        tft.setCursor(1, 1);
+        tft.setTextSize(1);
+        tft.setTextColor(GREEN);
+        tft.println("[OK] SATELLITE RECOVERED      Delta-1 Mission");
+        m1b1action();  // Force user to this page
+      }
+    }
+
+    lastSatelliteMode = systemData.mode;
+
     myRTC.updateTime();
     bool validToSave;
     bool validToSaveESM;
@@ -575,11 +585,6 @@ void loop() {
     // If in 10 mins, 30 secs no data is received, display message
     if (currentMillis - lastDataReceived >= losTolerance) {
       signalAct();
-      // clearMessageStatusBar();
-      // tft.setCursor(1, 1);
-      // tft.setTextColor(WHITE);
-      // tft.setTextSize(1);
-      // tft.println("[!!!] No data from CubeSat    Delta-1 Mission");
     }
   }
 
@@ -700,7 +705,7 @@ void loop() {
         tft.println("Menu 2 B1");
         yled(550);
         clearMessage();
-      }      
+      }
       if (page == 13) {
         m13b1action();
       }
@@ -1547,7 +1552,7 @@ String getElapsedTime(bool isMET) {
 
     // difference = difference / 24;
 
-    Serial.print("\ndifference (total days): " + String(difference));
+    // Serial.print("\ndifference (total days): " + String(difference));
 
 
 
@@ -2134,16 +2139,23 @@ void homescr() {
   enableArea = true;
   clearMessage();
 
-  clearMessageStatusBar();
+  clearMessageStatusBar(isSafeMode);
   tft.setCursor(1, 1);
-  tft.setTextColor(WHITE);
   tft.setTextSize(1);
 
-  if (currentMillis - lastDataReceived >= losTolerance) {
-    tft.println("[!!!] No data from CubeSat    Delta-1 Mission");
+  if (isSafeMode) {
+    // tft.println("[!!!] No data from CubeSat    Delta-1 Mission");
+    tft.setTextColor(BLACK);
+    tft.println("[!!!] SAFE MODE               Delta-1 Mission");
   } else {
-    tft.println("Mission Control Center        Delta-1 Mission");
+    tft.setTextColor(WHITE);
+    if (currentMillis - lastDataReceived >= losTolerance) {
+      tft.println("[!!!] No data from CubeSat    Delta-1 Mission");
+    } else {
+      tft.println("Mission Control Center        Delta-1 Mission");
+    }
   }
+
 
 
   tft.setCursor(41, 37);
@@ -2180,9 +2192,14 @@ void homescr() {
 void menu1() {
   boxes(6);
 
-  clearMessageStatusBar();
+  clearMessageStatusBar(isSafeMode);
+
   tft.setCursor(1, 1);
-  tft.setTextColor(WHITE);
+  if (isSafeMode) {
+    tft.setTextColor(BLACK);
+  } else {
+    tft.setTextColor(WHITE);
+  }
   tft.setTextSize(1);
   tft.println("Command & Data Handling");
 
@@ -2220,9 +2237,13 @@ void menu1() {
 void menu2() {
   boxes(5);
 
-  clearMessageStatusBar();
+  clearMessageStatusBar(isSafeMode);
   tft.setCursor(1, 1);
-  tft.setTextColor(WHITE);
+  if (isSafeMode) {
+    tft.setTextColor(BLACK);
+  } else {
+    tft.setTextColor(WHITE);
+  }
   tft.setTextSize(1);
   tft.println("Guidance, Navigation & Control");
 
@@ -2262,9 +2283,13 @@ void menu2() {
 void menu3() {
   boxes(3);
 
-  clearMessageStatusBar();
+  clearMessageStatusBar(isSafeMode);
   tft.setCursor(1, 1);
-  tft.setTextColor(WHITE);
+  if (isSafeMode) {
+    tft.setTextColor(BLACK);
+  } else {
+    tft.setTextColor(WHITE);
+  }
   tft.setTextSize(1);
   tft.println("Spacecraft Power, Art. & Thermal Control");
 
@@ -2304,9 +2329,13 @@ void menu3() {
 void menu4() {
   boxes(6);
 
-  clearMessageStatusBar();
+  clearMessageStatusBar(isSafeMode);
   tft.setCursor(1, 1);
-  tft.setTextColor(WHITE);
+  if (isSafeMode) {
+    tft.setTextColor(BLACK);
+  } else {
+    tft.setTextColor(WHITE);
+  }
   tft.setTextSize(1);
   tft.println("Science Payload Instruments");
 
@@ -2344,9 +2373,13 @@ void menu4() {
 void menu5() {
   boxes(2);
 
-  clearMessageStatusBar();
+  clearMessageStatusBar(isSafeMode);
   tft.setCursor(1, 1);
-  tft.setTextColor(WHITE);
+  if (isSafeMode) {
+    tft.setTextColor(BLACK);
+  } else {
+    tft.setTextColor(WHITE);
+  }
   tft.setTextSize(1);
   tft.println("Delta Cameras File System");
 
@@ -2739,9 +2772,13 @@ void m1b2action() {
   boxes(3);
   page = 12;
 
-  clearMessageStatusBar();
+  clearMessageStatusBar(isSafeMode);
   tft.setCursor(1, 1);
-  tft.setTextColor(WHITE);
+  if (isSafeMode) {
+    tft.setTextColor(BLACK);
+  } else {
+    tft.setTextColor(WHITE);
+  }
   tft.setTextSize(1);
   tft.println("On-board Computers");
 
@@ -2753,7 +2790,7 @@ void m1b2action() {
   tft.setCursor(192, 37);
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
-  tft.println("Rtrv Data");
+  tft.println("RBT OBC 11");
 
   tft.setCursor(22, 97);
   tft.setTextColor(WHITE);
@@ -2766,9 +2803,13 @@ void settingsb1action() {
   clearCenter();
   boxes(2);
 
-  clearMessageStatusBar();
+  clearMessageStatusBar(isSafeMode);
   tft.setCursor(1, 1);
-  tft.setTextColor(WHITE);
+  if (isSafeMode) {
+    tft.setTextColor(BLACK);
+  } else {
+    tft.setTextColor(WHITE);
+  }
   tft.setTextSize(1);
   tft.println("RTC-GPS");
 
@@ -2848,9 +2889,13 @@ void m1b3action() {
   boxes(5);
   page = 13;
 
-  clearMessageStatusBar();
+  clearMessageStatusBar(isSafeMode);
   tft.setCursor(1, 1);
-  tft.setTextColor(WHITE);
+  if (isSafeMode) {
+    tft.setTextColor(BLACK);
+  } else {
+    tft.setTextColor(WHITE);
+  }
   tft.setTextSize(1);
   tft.println("Spacecraft Modes");
 
@@ -3290,7 +3335,6 @@ void m5b6action() {
 // Sub-menu definitions
 
 void m12b1action() {
-
   clearMessage();
   tft.setCursor(12, 213);
   tft.setTextColor(RED);
@@ -3299,7 +3343,7 @@ void m12b1action() {
   tft.println("TX REBOOT OBC ...");
 
   // Transmit command 3 seconds
-  sendCommand(6.0, 3);  // activate ESM
+  sendCommand(6.0, 3);  // Reboot satellite computers
 
   clearMessage();
   tft.setCursor(12, 213);
@@ -3310,13 +3354,30 @@ void m12b1action() {
 }
 
 void m12b2action() {
+  // clearMessage();
+  // tft.setCursor(12, 213);
+  // tft.setTextColor(RED);
+  // tft.setTextSize(2);
+  // tft.println("Retrieving data ...");
+  // yled(550);
+  // clearMessage();
+
   clearMessage();
   tft.setCursor(12, 213);
   tft.setTextColor(RED);
   tft.setTextSize(2);
-  tft.println("Retrieving data ...");
-  yled(550);
+  // tft.println("Sending TX for ESM OFF ...");
+  tft.println("TX REBOOT OBC ...");
+
+  // Transmit command  for 11 minutes, but listen in between for incomming transmission. 660 secs
+  sendCommandAndListen(6.0, 660, false);  // Transmit 11 mins to reboot computers on Delta1, false for altitude reset
+
   clearMessage();
+  tft.setCursor(12, 213);
+  tft.setTextColor(GREEN);
+  tft.setTextSize(2);
+  tft.println("[OK] BOOT requested");
+  delay(2000);
 }
 
 void m12b3action() {
@@ -3497,10 +3558,16 @@ void boxes(int howMany) {  // redraw the button outline boxes
 }
 
 void ant() {
-  tft.fillRect((antpos + 5), 4, 1, 6, WHITE);  // draws the "antenna" for the signal indicator
+  if (isSafeMode) {
+    tft.fillRect((antpos + 5), 4, 1, 6, BLACK);  // draws the "antenna" for the signal indicator
+  } else {
+    tft.fillRect((antpos + 5), 4, 1, 6, WHITE);  // draws the "antenna" for the signal indicator
+  }
 }
 
 void signal(bool green) {  // draws a white 'signal indicator'
+  ant();
+
   if (green) {
     tft.drawLine((antpos + 4), 4, (antpos + 4), 5, GREEN);
     tft.drawPixel((antpos + 3), 2, GREEN);
@@ -3521,28 +3588,50 @@ void signal(bool green) {  // draws a white 'signal indicator'
     tft.drawPixel((antpos + 9), 8, GREEN);
     tft.drawLine((antpos + 10), 2, (antpos + 10), 7, GREEN);
   } else {
-    tft.drawLine((antpos + 4), 4, (antpos + 4), 5, WHITE);
-    tft.drawPixel((antpos + 3), 2, WHITE);
-    tft.drawPixel((antpos + 3), 7, WHITE);
-    tft.drawPixel((antpos + 2), 0, WHITE);
-    tft.drawLine((antpos + 2), 3, (antpos + 2), 6, WHITE);
-    tft.drawPixel((antpos + 2), 9, WHITE);
-    tft.drawPixel((antpos + 1), 1, WHITE);
-    tft.drawPixel((antpos + 1), 8, WHITE);
-    tft.drawLine(antpos, 2, antpos, 7, WHITE);
-    tft.drawLine((antpos + 6), 4, (antpos + 6), 5, WHITE);
-    tft.drawPixel((antpos + 7), 2, WHITE);
-    tft.drawPixel((antpos + 7), 7, WHITE);
-    tft.drawPixel((antpos + 8), 0, WHITE);
-    tft.drawLine((antpos + 8), 3, (antpos + 8), 6, WHITE);
-    tft.drawPixel((antpos + 8), 9, WHITE);
-    tft.drawPixel((antpos + 9), 1, WHITE);
-    tft.drawPixel((antpos + 9), 8, WHITE);
-    tft.drawLine((antpos + 10), 2, (antpos + 10), 7, WHITE);
+    if (isSafeMode) {
+      tft.drawLine((antpos + 4), 4, (antpos + 4), 5, BLACK);
+      tft.drawPixel((antpos + 3), 2, BLACK);
+      tft.drawPixel((antpos + 3), 7, BLACK);
+      tft.drawPixel((antpos + 2), 0, BLACK);
+      tft.drawLine((antpos + 2), 3, (antpos + 2), 6, BLACK);
+      tft.drawPixel((antpos + 2), 9, BLACK);
+      tft.drawPixel((antpos + 1), 1, BLACK);
+      tft.drawPixel((antpos + 1), 8, BLACK);
+      tft.drawLine(antpos, 2, antpos, 7, BLACK);
+      tft.drawLine((antpos + 6), 4, (antpos + 6), 5, BLACK);
+      tft.drawPixel((antpos + 7), 2, BLACK);
+      tft.drawPixel((antpos + 7), 7, BLACK);
+      tft.drawPixel((antpos + 8), 0, BLACK);
+      tft.drawLine((antpos + 8), 3, (antpos + 8), 6, BLACK);
+      tft.drawPixel((antpos + 8), 9, BLACK);
+      tft.drawPixel((antpos + 9), 1, BLACK);
+      tft.drawPixel((antpos + 9), 8, BLACK);
+      tft.drawLine((antpos + 10), 2, (antpos + 10), 7, BLACK);
+    } else {
+      tft.drawLine((antpos + 4), 4, (antpos + 4), 5, WHITE);
+      tft.drawPixel((antpos + 3), 2, WHITE);
+      tft.drawPixel((antpos + 3), 7, WHITE);
+      tft.drawPixel((antpos + 2), 0, WHITE);
+      tft.drawLine((antpos + 2), 3, (antpos + 2), 6, WHITE);
+      tft.drawPixel((antpos + 2), 9, WHITE);
+      tft.drawPixel((antpos + 1), 1, WHITE);
+      tft.drawPixel((antpos + 1), 8, WHITE);
+      tft.drawLine(antpos, 2, antpos, 7, WHITE);
+      tft.drawLine((antpos + 6), 4, (antpos + 6), 5, WHITE);
+      tft.drawPixel((antpos + 7), 2, WHITE);
+      tft.drawPixel((antpos + 7), 7, WHITE);
+      tft.drawPixel((antpos + 8), 0, WHITE);
+      tft.drawLine((antpos + 8), 3, (antpos + 8), 6, WHITE);
+      tft.drawPixel((antpos + 8), 9, WHITE);
+      tft.drawPixel((antpos + 9), 1, WHITE);
+      tft.drawPixel((antpos + 9), 8, WHITE);
+      tft.drawLine((antpos + 10), 2, (antpos + 10), 7, WHITE);
+    }
   }
 }
 
 void signalAct() {  // draws a red'signal indicator'
+  ant();
   tft.drawLine((antpos + 4), 4, (antpos + 4), 5, RED);
   tft.drawPixel((antpos + 3), 2, RED);
   tft.drawPixel((antpos + 3), 7, RED);
@@ -3593,23 +3682,31 @@ void clearMessage() {
   tft.fillRect(12, 213, 226, 16, BLACK);  // black out the inside of the message box
 }
 
-void clearMessageStatusBar() {
-  tft.fillRect(0, 0, 278, 10, JJCOLOR);  // status bar
+void clearMessageStatusBar(bool sm) {
+
+  // tft.fillRect(0, 0, 320, 10, JJCOLOR);  // from setup()
+  // tft.fillRect(0, 0, 278, 10, YELLOW); // original
+
+  if (sm) {                               // Safe Mode has been detected, print status in warning color
+    tft.fillRect(0, 0, 320, 10, YELLOW);  // status bar in emergency state
+  } else {
+    tft.fillRect(0, 0, 320, 10, JJCOLOR);  // status bar
+  }
 }
 
-void drawBatt() {
-  battv = readVcc();      // read the voltage
-  if (battv < battold) {  // if the voltage goes down, erase the inside of the battery
-    tft.fillRect(298, 2, 18, 6, BLACK);
-  }
-  battfill = map(battv, 3000, 4150, 2, 18);  // map the battery voltage 3000 nis the low, 4150 is the high
-  if (battfill > 7) {                        // if the battfill value is between 8 and 18, fill with green
-    tft.fillRect(298, 2, battfill, 6, GREEN);
-  } else {  // if the battfill value is below 8, fill with red
-    tft.fillRect(298, 2, battfill, 6, RED);
-  }
-  battold = battv;  // this helps determine if redrawing the battfill area is necessary
-}
+// void drawBatt() {
+//   battv = readVcc();      // read the voltage
+//   if (battv < battold) {  // if the voltage goes down, erase the inside of the battery
+//     tft.fillRect(298, 2, 18, 6, BLACK);
+//   }
+//   battfill = map(battv, 3000, 4150, 2, 18);  // map the battery voltage 3000 nis the low, 4150 is the high
+//   if (battfill > 7) {                        // if the battfill value is between 8 and 18, fill with green
+//     tft.fillRect(298, 2, battfill, 6, GREEN);
+//   } else {  // if the battfill value is below 8, fill with red
+//     tft.fillRect(298, 2, battfill, 6, RED);
+//   }
+//   battold = battv;  // this helps determine if redrawing the battfill area is necessary
+// }
 
 void drawClock(String time) {
 

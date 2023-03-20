@@ -203,28 +203,58 @@ void loop() {
         4) Transmit data just 5 seconds and don't listen for commands
       
         */
-
+            
         telemetryData.humidity = -1.0;
         telemetryData.temperature = -1.0;
         telemetryData.pressure = -1.0;
         telemetryData.localAltitude = -1.0;
-        telemetryData.pitch = -1.0;
-        telemetryData.roll = -1.0;
-        telemetryData.yaw = -1.0;
+        
+        computePitchRollYaw(); // Data that might be of importance
+        telemetryData.pitch = pitch;
+        telemetryData.roll = roll;
+        telemetryData.yaw = yaw;
 
         // Send telemetryData via I2C to peripheral slave for data saving
         sendDataI2C(3);  // Save system data as Safe Mode
 
-        // Transmitting 3 seconds
+        // Transmitting 4 seconds
         unsigned long startTime = millis();
         unsigned long endTime = startTime;
-        while ((endTime - startTime) <= 3000) {
+        while ((endTime - startTime) <= 4000) {
           transmitData();
           endTime = millis();
         }
 
-        // Send sleep command to SAT_B and then sleep spacecraft
-        sendDataI2C(7);  // Send sleep command to peripheral (9 mins, 4 seconds calculated)
+        // Listen 4 seconds for incomming MCC commands
+            int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
+            uint8_t buflen = sizeof(buf);
+
+            startTime = millis();
+            endTime = startTime;
+
+            while ((endTime - startTime) <= 4000) {  // Listen radio for 4,000 ms while transmitting ack
+              if (rf_driver.recv(buf, &buflen) == 1) {
+
+                memcpy(&commandData, buf, sizeof(commandData));
+                if(commandData.op == 6.0) { 
+                  executeCommand(6.0); // Reboot OBCs command
+                }
+                
+                // Transmit an ack message for X seconds (could be the same telemetry data with the SC mode)
+                unsigned long startTime2 = millis();
+                unsigned long endTime2 = startTime2;
+                while ((endTime2 - startTime2) <= 5000) {  // Transmit ack for 5,000 ms // 5k
+                  systemData.mode = spacecraftMode;        // Update with new mode
+                  transmitData();                  
+                  endTime2 = millis();
+                }
+                break;  // end 'if' and break while loop
+              }              
+              endTime = millis();
+            }
+
+        // Send sleep command to SAT_B and then sleep spacecraft        
+        sendDataI2C(6);  // Send sleep command to peripheral (9 mins, 4 seconds calculated) and/or sync RTC with GPS
         deepSleep(2);    // sleep SAT_A 9 mins, 50 sec
 
         break;
@@ -322,31 +352,29 @@ void loop() {
             telemetryData.roll = roll;
             telemetryData.yaw = yaw;
 
-
             // Send telemetryData via I2C to peripheral slave for data saving
             sendDataI2C(4);  // SUDO save telemetry data
             sendDataI2C(5);  // SUDO save system data
 
-            // Transmitting 3 seconds // Changing it to 5 secs
+            // Transmitting 5 seconds
             unsigned long startTime = millis();
             unsigned long endTime = startTime;
             while ((endTime - startTime) <= 5000) {  // Increase it so MCC listens
-              transmitData();
-              // delay(250);
+              transmitData();              
               endTime = millis();
             }
             // Serial.print("\n M3");
 
-            // Listen 7/5 seconds for incomming MCC commands
+            // Listen 5 seconds for incomming MCC commands
             int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
             uint8_t buflen = sizeof(buf);
 
             startTime = millis();
             endTime = startTime;
 
-            while ((endTime - startTime) <= 5000) {  // Listen radio for 7,000 ms while transmitting ack (changing it to 5 seconds)
+            while ((endTime - startTime) <= 5000) {  // Listen radio for 5,000 ms while transmitting ack
               if (rf_driver.recv(buf, &buflen) == 1) {
-
+                
                 // Serial.print("\n M4"); // It is being triggered even though no signal is sent from MCC
 
                 memcpy(&commandData, buf, sizeof(commandData));
@@ -355,10 +383,9 @@ void loop() {
                 // Transmit an ack message for X seconds (could be the same telemetry data with the SC mode)
                 unsigned long startTime2 = millis();
                 unsigned long endTime2 = startTime2;
-                while ((endTime2 - startTime2) <= 5000) {  // Transmit ack for 5,500 ms // 5k
+                while ((endTime2 - startTime2) <= 5000) {  // Transmit ack for 5,000 ms // 5k
                   systemData.mode = spacecraftMode;        // Update with new mode
-                  transmitData();
-                  // delay(250);
+                  transmitData();                  
                   endTime2 = millis();
                 }
                 break;  // end 'if' and break while loop
@@ -577,7 +604,7 @@ void sendDataI2C(int type) {
       auxiliarData.val6 = 0.0;
       auxiliarData.val7 = 0.0;
       break;
-    case 4:                     // Send telemetry data as SUDO (ESM)
+    case 4:  // Send telemetry data as SUDO (ESM)
       auxiliarData.header = 4;  // SUDO save telemetry data: Don't check validTime on SAT_B
       auxiliarData.val1 = telemetryData.humidity;
       auxiliarData.val2 = telemetryData.temperature;
@@ -597,7 +624,7 @@ void sendDataI2C(int type) {
       auxiliarData.val6 = 0.0;
       auxiliarData.val7 = 0.0;
       break;
-    case 6:                     // Order SAT_B to activate sleep mode
+    case 6:  // Order SAT_B to activate sleep mode
       auxiliarData.header = 6;  // activate sleep mode on SAT_B
       auxiliarData.val1 = 0.0;
       auxiliarData.val2 = 0.0;
@@ -607,8 +634,8 @@ void sendDataI2C(int type) {
       auxiliarData.val6 = 0.0;
       auxiliarData.val7 = 0.0;
       break;
-    case 7:
-      auxiliarData.header = 7;  // reboot OBC SAT_B
+    case 7: // reboot OBC SAT_B
+      auxiliarData.header = 7;  
       auxiliarData.val1 = 0.0;
       auxiliarData.val2 = 0.0;
       auxiliarData.val3 = 0.0;
@@ -808,7 +835,7 @@ void checkTriggerSM(int lastMode) {
     No charge permitted below freezing.
 
   */
-  if (systemData.internalTemp <= 0.0 || systemData.internalTemp >= 45.0) {  // >= 45.0
+  if (systemData.internalTemp <= 0.0 || systemData.internalTemp >= 45.0) {  // >= 45.0 degrees
     spacecraftMode = 0;
   } else {
     spacecraftMode = lastMode;
