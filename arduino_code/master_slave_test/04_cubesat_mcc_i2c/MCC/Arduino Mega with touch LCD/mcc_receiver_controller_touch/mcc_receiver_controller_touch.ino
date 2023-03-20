@@ -278,6 +278,7 @@ void setup() {
   Serial.begin(9600);
 
   // UI configuration ------------------------------------------------------------
+
   pinMode(redled, OUTPUT);
   pinMode(greenled, OUTPUT);
   esleep = EEPROM.read(1);
@@ -320,7 +321,9 @@ void setup() {
   }
   awakeend = sleeptime + 1000;  // set the current sleep time based on what the saved settings in EEPROM were
   pinMode(backlight, OUTPUT);
-  Serial.println("AOS");
+
+
+  // Serial.println("AOS");
   // Serial.println("Albert Cervera  -  2023");
   // Serial.print("TFT size is ");
   // Serial.print(tft.width());
@@ -331,8 +334,8 @@ void setup() {
 
   tft.reset();
 
-  uint16_t identifier = tft.readID();
 
+  uint16_t identifier = tft.readID();
   if (identifier == 0x9325) {
     Serial.println(F("Found ILI9325 LCD driver"));
   } else if (identifier == 0x9328) {
@@ -357,7 +360,6 @@ void setup() {
     while (1)
       ;
   }
-
 
   // tft.initDisplay();
   tft.begin(identifier);
@@ -430,43 +432,35 @@ void setup() {
   Serial.println("initialization done.");
   // Remove existing file.
   //  SD.remove("READTEST.TXT"); // Code that I'll never use here, but is useful to know
-  ss.begin(9600);  // initialize GPS module at GPSBaud 9600
+
+  // GPS baud is the CULPRIT!!
+  // ss.begin(9600);  // initialize GPS module at GPSBaud 9600
+
 
 }  // end void setup()
+
 
 void loop() {
 
   // MCC configuration -----------------------------------------------------------
 
-  // String timestamp = getTimestampTime();
-  // Serial.print("\nTimestamp: ");
-  // Serial.print(timestamp);
-  // String timestampDate = getTimestampDate();
-  // Serial.print(", " + timestampDate);
 
   // Receiver antenna code -----------------------------
   // Set buffer to size of expected message
-  int8_t buf[RH_ASK_MAX_MESSAGE_LEN];  // Set it to maximum size of 60 bytes, but not the actual expected size
+  // int8_t buf[RH_ASK_MAX_MESSAGE_LEN];  // Set it to maximum size of 60 bytes, but not the actual expected size
+  int8_t buf[sizeof(transferData)];
   uint8_t buflen = sizeof(buf);
 
   // Transfer data was declared here (transferStruct)
-  
+
   // Serial.print("\nM1");
+  // delay(250);
 
   // Non-blocking
   // If data received ...
-  if (rf_driver.recv(buf, &buflen) == 1) {    
+  if (rf_driver.recv(buf, &buflen)) {  // rf_driver.recv(buf, &buflen) == 1
 
-    // Serial.print("\n[OK] Data rcvd from CubeSat");
-
-    /*
-      00:06:04.149 -> [OK] Data rcvd from CubeSat
-      00:06:17.040 -> [OK] Data rcvd from CubeSat
-      00:06:20.967 -> [OK] Data rcvd from CubeSat
-      00:06:47.023 -> [OK] Data rcvd from CubeSat
-      00:06:50.946 -> [OK] Data rcvd from CubeSat
-      00:07:20.987 -> [OK] Data rcvd from CubeSat
-    */
+    Serial.print("\n[OK] Data rcvd from CubeSat");
 
     rcvdTx = true;
     rcvdTime = getTimestampTime();
@@ -566,6 +560,7 @@ void loop() {
         break;
     }
 
+
     // sendDataI2C(); // Send telemetryData via I2C to peripheral slave
 
   } else if ((rf_driver.recv(buf, &buflen) == 0)) {
@@ -592,7 +587,6 @@ void loop() {
     startSync = true;
   }
 
-
   if (startSync == true) {
     clearMessage();
     tft.setCursor(12, 213);
@@ -608,7 +602,7 @@ void loop() {
     // String timestampDate = getTimestampDate();
     // Serial.print(", " + timestampDate);
   }
-  
+
 
   // UI configuration ------------------------------------------------------------
 
@@ -624,19 +618,17 @@ void loop() {
   //   }
   // }
 
-  // digitalxWrite(13, HIGH);  // added
-  TSPoint p = ts.getPoint();
-  // digitalWrite(13, LOW);  // added
 
+  TSPoint p = ts.getPoint();
 
   // if you're sharing pins, you'll need to fix the directions of the touchscreen pins!
-  //pinMode(XP, OUTPUT);
   pinMode(XM, OUTPUT);
   pinMode(YP, OUTPUT);
-  //pinMode(YM, OUTPUT);
+
 
   // we have some minimum pressure we consider 'valid'
   // pressure of 0 means no pressing!
+
   if ((p.z > MINPRESSURE && p.z < MAXPRESSURE)) {
 
     // awakeend = currenttime + sleeptime;  //set the sleep time when screen is pressed
@@ -708,7 +700,7 @@ void loop() {
         tft.println("Menu 2 B1");
         yled(550);
         clearMessage();
-      }
+      }      
       if (page == 13) {
         m13b1action();
       }
@@ -1199,8 +1191,9 @@ void loop() {
     }
   }
 
-  
+
 }  // end void loop()
+
 
 // *****************************************************************************
 // MCC internal functions ******************************************************
@@ -1810,6 +1803,7 @@ bool validTimeToSync() {
 // Gets UTC time via GPS and syncs RTC
 void syncGPSDateTime(bool strictMode) {
   TinyGPSPlus gps;  // The TinyGPS++ object
+  ss.begin(9600);
 
   int day, month, year, hour, minute, second;
   // String latitude, longitude, altitude;
@@ -1900,11 +1894,13 @@ void syncGPSDateTime(bool strictMode) {
 
     endTime = millis();
   }  // end while 3 or 9 mins
+  ss.end();
 }
 
 // Gets latitude, longitude and altitude data from GPS
 void getGPSData() {
   TinyGPSPlus gps;  // The TinyGPS++ object
+  ss.begin(9600);
 
   unsigned long startTime = millis();
   unsigned long endTime = startTime;
@@ -1936,6 +1932,7 @@ void getGPSData() {
 
     endTime = millis();
   }
+  ss.end();
 }
 
 // This assumes constant querying to RTC to know exact time so we don't miss second 0 of each hour.
@@ -3224,7 +3221,7 @@ void m4b6action() {
   tft.setTextSize(2);
   tft.println("X: " + String(telemetryData.pitch) + +"\367");
 
-  Serial.println("m4b6 Pitch: " + String(telemetryData.pitch));
+  // Serial.println("m4b6 Pitch: " + String(telemetryData.pitch));
 
   tft.setCursor(22, 147);
   tft.setTextColor(WHITE);
@@ -3293,13 +3290,23 @@ void m5b6action() {
 // Sub-menu definitions
 
 void m12b1action() {
+
   clearMessage();
   tft.setCursor(12, 213);
   tft.setTextColor(RED);
   tft.setTextSize(2);
-  tft.println("Rebooting OBC ...");
-  yled(550);
+  // tft.println("Sending TX for ESM OFF ...");
+  tft.println("TX REBOOT OBC ...");
+
+  // Transmit command 3 seconds
+  sendCommand(6.0, 3);  // activate ESM
+
   clearMessage();
+  tft.setCursor(12, 213);
+  tft.setTextColor(GREEN);
+  tft.setTextSize(2);
+  tft.println("[OK] BOOT requested");
+  delay(2000);
 }
 
 void m12b2action() {

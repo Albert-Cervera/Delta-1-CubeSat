@@ -265,9 +265,8 @@ void setup() {
     while (1)
       ;
   }
-  Serial.print("SD_OK");
-  ss.begin(9600);  // initialize GPS module at GPSBaud 9600
-  // Serial.print("\nsizeof rtcData): " + String(sizeof rtcData)); // 7
+  Serial.print("\nSD_OK");
+ 
 }
 
 void loop() {
@@ -486,6 +485,8 @@ void requestEvent() {
   
 }
 
+void (*resetFunc)(void) = 0;  // declare reset fuction at address 0
+
 /* receiveEvent()
   function that executes whenever data is received from master
   this function is registered as an event, see setup().
@@ -495,7 +496,7 @@ void receiveEvent() {
 
   if (auxiliarDataLog.header == 6) {  // Activate deep sleep OR sync RTC (ESM mode)
     /*
-    IDEA: SAT_B could update himseld without command from SAT_A:
+    IDEA: SAT_B could update himself without command from SAT_A:
           After writting data from ESM mode, if current time = time to update, 
           SAT_B would ignore the current sleep command and start syncing its RTC with GPS.
           After syncing it would RESET and then stay awake, until next ESM command from SAT_A.
@@ -506,9 +507,11 @@ void receiveEvent() {
     } else {
       deepSleep();
     }
-  } else if (auxiliarDataLog.header == 7) {  //Activate deep sleep (SAFE mode)
+  } else if (auxiliarDataLog.header == 7) { // reboot this OBC
+    resetFunc(); //call reset
+  } else if (auxiliarDataLog.header == 8) {  // Activate deep sleep (SAFE mode)
     deepSleep();
-  } else if (auxiliarDataLog.header == 8) {  // TODO: Force an RTC update (from MCC command)
+  } else if (auxiliarDataLog.header == 9) {  // TODO: Force an RTC update (from MCC command)
     startSync = true;
   } else {
     writeToSD(auxiliarDataLog.header);  // Write to txt file
@@ -559,6 +562,7 @@ void deepSleep() {
 // Gets UTC time via GPS and syncs RTC
 void syncGPSDateTime(bool strictMode) {
   TinyGPSPlus gps;  // The TinyGPS++ object
+  ss.begin(9600);
 
   int day, month, year, hour, minute, second;
   // String latitude, longitude, altitude;
@@ -635,12 +639,14 @@ void syncGPSDateTime(bool strictMode) {
 
     endTime = millis();
   }  // end while 3 or 9 mins
+  ss.end();
 }
 
 
 // Gets UTC time via GPS and syncs RTC // ORIGINAL FUNCTION
 // void syncGPSDateTime() {
 //   TinyGPSPlus gps;  // The TinyGPS++ object
+// ss.begin(9600); // add its end
 
 //   int day, month, year, hour, minute, second;
 //   // String latitude, longitude, altitude;
@@ -686,6 +692,7 @@ void syncGPSDateTime(bool strictMode) {
 // Gets latitude, longitude and altitude data from GPS
 void getGPSData() {
   TinyGPSPlus gps;  // The TinyGPS++ object
+  // ss.begin(9600); // add its end
   
   unsigned long startTime = millis();
   unsigned long endTime = startTime;

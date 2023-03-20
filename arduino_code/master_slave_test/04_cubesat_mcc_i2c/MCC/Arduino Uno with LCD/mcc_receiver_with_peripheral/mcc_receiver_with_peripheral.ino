@@ -152,10 +152,7 @@ void loop() {
     key = customKey;
   }
 
-  // Receiver antenna code -----------------------------
-  // Set buffer to size of expected message
-  int8_t buf[RH_ASK_MAX_MESSAGE_LEN];  // Set it to maximum size of 60 bytes, but not the actual expected size
-  uint8_t buflen = sizeof(buf);
+  
 
   // struct transferStruct {
   //   int mode;
@@ -191,10 +188,17 @@ void loop() {
     float yaw;
   } transferData;
 
+
   int initDay, initMonth, initYear, initHour, initMinute, initSecond;
 
+  // Receiver antenna code -----------------------------
+  // Set buffer to size of expected message
+  // int8_t buf[RH_ASK_MAX_MESSAGE_LEN];  // Set it to maximum size of 60 bytes, but not the actual expected size
+  int8_t buf[sizeof(transferData)];
+  uint8_t buflen = sizeof(buf);
+
   // Non-blocking
-  if (rf_driver.recv(buf, &buflen) == 1) {
+  if (rf_driver.recv(buf, &buflen)) { // rf_driver.recv(buf, &buflen) == 1
     // If data received ...
 
     lastDataReceived = millis();
