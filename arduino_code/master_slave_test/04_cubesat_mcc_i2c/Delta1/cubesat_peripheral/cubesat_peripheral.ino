@@ -63,7 +63,7 @@ int lastSecondSavedTel, lastMinuteSavedTel;
 int lastSecondSavedSys, lastMinuteSavedSys;
 // String latitude, longitude, altitude;
 
-bool startSync = false; // For RTC-GPS sync
+bool startSync = false;  // For RTC-GPS sync
 bool synced = false;
 
 /*
@@ -266,7 +266,6 @@ void setup() {
       ;
   }
   Serial.print("\nSD_OK");
- 
 }
 
 void loop() {
@@ -380,6 +379,10 @@ void writeToSD(int flag) {
     case 5:  // ESM mode: SUDO save system data: Don't check validTime
       writeFile(5, "1_ESM/ESMSYS.txt");
       break;
+    case 10:  // HIB mode: SUDO save system data: Don't check validTime
+      // Serial.print("\nM1");
+      writeFile(6, "3_HIB/HIBSYS.txt");
+      break;
   }
 }
 
@@ -392,8 +395,7 @@ void writeFile(int flag, String fileName) {
 
   if (flag == 1 || flag == 4) {  // save telemetry
     if (myFile) {
-      // Serial.print(" m1");
-
+      
       // Similar to a CSV format
       myFile.print(time + ",");
       myFile.print(date + ",");
@@ -417,8 +419,11 @@ void writeFile(int flag, String fileName) {
       // TODO: consider trying to initialize the sd card again
       Serial.print("\nERR txt 1-4");
     }
-  } else if (flag == 2 || flag == 3 || flag == 5) {  //save system data
+  } else if (flag == 2 || flag == 3 || flag == 5 || flag == 6) {
+    //save system data
+    // Serial.print("\nM2");
     if (myFile) {
+      // Serial.print("\nM3");
 
       myFile.print(time + ",");
       myFile.print(date + ",");
@@ -436,7 +441,7 @@ void writeFile(int flag, String fileName) {
 
     } else {
       // TODO: consider trying to initialize the sd card again
-      Serial.print("\nERR txt 2-3-5");
+      Serial.print("\nERR txt 2-3-5-6");
     }
   }
   /*
@@ -467,7 +472,7 @@ function that executes whenever data is requested by master.
 Registered as event, this function returns RTC data to SAT_A.
 */
 void requestEvent() {
-  
+
   // Serial.print("\nmyRTC.year: " + String(myRTC.year));
 
   myRTC.updateTime();
@@ -481,8 +486,6 @@ void requestEvent() {
   // Serial.print("\nrtcData.year: " + String(rtcData.year));
 
   Wire.write((byte *)&rtcData, sizeof rtcData);
-
-  
 }
 
 void (*resetFunc)(void) = 0;  // declare reset fuction at address 0
@@ -507,8 +510,8 @@ void receiveEvent() {
     } else {
       deepSleep();
     }
-  } else if (auxiliarDataLog.header == 7) { // reboot this OBC
-    resetFunc(); //call reset
+  } else if (auxiliarDataLog.header == 7) {  // reboot this OBC
+    resetFunc();                             //call reset
   } else if (auxiliarDataLog.header == 8) {  // Activate deep sleep (SAFE mode)
     deepSleep();
   } else if (auxiliarDataLog.header == 9) {  // TODO: Force an RTC update (from MCC command)
@@ -572,7 +575,8 @@ void syncGPSDateTime(bool strictMode) {
 
   // 9 mins = 540 secs = 540000 ms
   // 3 mins = 180 secs = 180000 ms
-  while ((endTime - startTime) <= 180000) {  // Try to sync 3 mins
+  // 5 mins = 300 secs = 300000 ms
+  while ((endTime - startTime) <= 300000) {  // Try to sync 5 mins
     if (ss.available() > 0) {
       if (gps.encode(ss.read())) {
 
@@ -599,7 +603,7 @@ void syncGPSDateTime(bool strictMode) {
               if (day > 0 && day <= 31 && month <= 12 && year >= 2023) {
                 // Update RTC with GPS UTC time
                 myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
-                synced = true;                
+                synced = true;
                 break;
               }
             }
@@ -628,7 +632,7 @@ void syncGPSDateTime(bool strictMode) {
             if (day > 0 && day <= 31 && month <= 12 && year >= 2023) {
               // Update RTC with GPS UTC time
               myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
-              synced = true;              
+              synced = true;
               break;
             }
           }
@@ -642,51 +646,6 @@ void syncGPSDateTime(bool strictMode) {
   ss.end();
 }
 
-
-// Gets UTC time via GPS and syncs RTC // ORIGINAL FUNCTION
-// void syncGPSDateTime() {
-//   TinyGPSPlus gps;  // The TinyGPS++ object
-// ss.begin(9600); // add its end
-
-//   int day, month, year, hour, minute, second;
-//   // String latitude, longitude, altitude;
-//   unsigned long startTime = millis();
-//   unsigned long endTime = startTime;
-//   bool gpsDate, gpsTime = false;
-
-//   // 9 mins = 540 secs
-//   while ((endTime - startTime) <= 540000) {
-//     if (ss.available() > 0) {
-//       if (gps.encode(ss.read())) {
-
-//         if (gps.date.isValid()) {
-//           day = gps.date.day();
-//           month = gps.date.month();
-//           year = gps.date.year();
-//           gpsDate = true;
-//         }
-
-//         if (gps.time.isValid()) {
-//           hour = gps.time.hour();
-//           minute = gps.time.minute();
-//           second = gps.time.second();
-//           gpsTime = true;
-//         }
-
-//         if (gpsDate && gpsTime) {
-//           if (day > 0 && day <= 31 && month <= 12 && year == 2023) {
-//             // Update RTC with GPS UTC time
-//             myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
-//             break;
-//           }
-//         }
-
-//       }  // end if gps.encode(ss.read())
-//     }    // end if ss.available()
-
-//     endTime = millis();
-//   }  // end while 9 mins
-// }
 
 /*
 // Gets latitude, longitude and altitude data from GPS

@@ -1795,13 +1795,23 @@ String getElapsedTime(bool isMET) {
 
 // Checks if is the correct UTC time to initiate RTC-GPS synchronization
 bool validTimeToSync() {
-  if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 01 && synced == false) {  // Original (good) proposal
-                                                                                                                                       // if ((myRTC.minutes == 0 || myRTC.minutes == 10 || myRTC.minutes == 20 || myRTC.minutes == 30 || myRTC.minutes == 40 || myRTC.minutes == 50) && myRTC.seconds == 00 && synced == false) {  // Every 10 minutes
-                                                                                                                                       // if ((myRTC.minutes == 15 || myRTC.minutes == 16 || myRTC.minutes == 17 || myRTC.minutes == 18 || myRTC.minutes == 19 || myRTC.minutes == 50) && myRTC.seconds == 00 && synced == false) {  // Any minute testing
-    return true;
-  } else {
-    synced = false;
+  // if ((myRTC.minutes == 0 || myRTC.minutes == 10 || myRTC.minutes == 20 || myRTC.minutes == 30 || myRTC.minutes == 40 || myRTC.minutes == 50) && myRTC.seconds == 00 && synced == false) {  // Every 10 minutes
+  // if ((myRTC.minutes == 15 || myRTC.minutes == 16 || myRTC.minutes == 17 || myRTC.minutes == 18 || myRTC.minutes == 19 || myRTC.minutes == 50) && myRTC.seconds == 00 && synced == false) {  // Any minute testing
+
+  if (isSafeMode) {
+    /*
+      Do not allow RTC-GPS sync since it may take up to 3 mins, in which the spacecraft could transmit.
+      This maximizes the opportunity to receive a signal from Satellite.
+      However, manual syncing is allowed.
+    */
     return false;
+  } else {
+    if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 01 && synced == false) {  // Original (good) proposal
+      return true;
+    } else {
+      synced = false;
+      return false;
+    }
   }
 }
 
@@ -2736,7 +2746,7 @@ void m1b1action() {
       stringMode = " (ESM)";
       break;
     case 2:
-      stringMode = " (RTW)";
+      stringMode = " (HIB)";
       break;
     case 3:
       stringMode = " (RTI)";
@@ -3469,10 +3479,18 @@ void m13b5action() {
   clearMessage();
   tft.setCursor(12, 213);
   tft.setTextColor(RED);
-  tft.setTextSize(2);
-  tft.println("Hibernation ...");
-  yled(550);
+  tft.setTextSize(2);  
+  tft.println("TX HIB ON ...");
+
+  // Transmit command 3 seconds
+  sendCommand(3.0, 3);  // Activate HIB mode
+
   clearMessage();
+  tft.setCursor(12, 213);
+  tft.setTextColor(GREEN);
+  tft.setTextSize(2);
+  tft.println("[OK] HIB requested");
+  delay(2000);
 }
 
 void blightUp() {  // increase the backlight brightness

@@ -54,8 +54,11 @@
 RH_ASK rf_driver(2000, A3, 9, 0);  // speed in bps, rxPin, txPin, pttPin <-- Send data in PIN 9 and receive in PIN A3
 
 // Constants
-#define DHTPIN 7       // DHT22 Data Pin
-#define DHTTYPE DHT22  // DHT 22  (AM2302)
+#define DHTPIN 7         // DHT22 Data Pin
+#define DHTTYPE DHT22    // DHT 22  (AM2302)
+#define GPS_PIN 3        // Pin in which the MOSFET would turn on/off the GPS sensor
+#define FIVE_VOLT_PIN 5  // Pin to turn on/off the 5V sensors (DSB18B20 and DHT22)
+
 
 // BMP280 Barometer sensor order: VCC, GND, SCL, SDA, CSB, SDO
 // #define BME_SCK 13   // SCL
@@ -64,7 +67,8 @@ RH_ASK rf_driver(2000, A3, 9, 0);  // speed in bps, rxPin, txPin, pttPin <-- Sen
 #define BME_CS 10  // CSB
 
 //Variables
-int spacecraftMode = 4;     // Modes -> 0: Safe Mode, 1: ESM, 2: RTW, 3: RTI, 4: RTWI
+// Modes -> 0: Safe Mode, 1: ESM, 2: HIB, 3: RTI, 4: RTWI
+int spacecraftMode = 4;
 int lastMode = 4;           // should be same as spacecraftMode when compiling
 float pressureGroundLevel;  // Current pressure when CubeSat started
 float pitch, roll, yaw;     // Inertial Measurement Unit variables
@@ -125,6 +129,14 @@ DallasTemperature sensors(&ourWire);
 void setup() {
   Serial.begin(9600);
 
+  pinMode(GPS_PIN, OUTPUT);  // Defining this pin as output pin
+  pinMode(FIVE_VOLT_PIN, OUTPUT);
+
+  /*
+    NOTE: All sensors must be connected at Boot
+  */
+  digitalWrite(FIVE_VOLT_PIN, HIGH);  // Setting pin to HIGH (turn ON)
+
   // Serial.print("\nM1");
 
   dht.begin();
@@ -171,6 +183,9 @@ void loop() {
   checkTriggerSM(lastMode);  // Safe mode trigger condition checking
   systemData.mode = spacecraftMode;
 
+  // digitalWrite(GPS_PIN, HIGH); // Setting pin to HIGH (turn ON)
+  // digitalWrite(GPS_PIN, LOW);// Setting pin to LOW (turn OFF)
+
   // Modes -> 0: Safe Mode, 1: ESM, 2: RTW, 3: RTI, 4: RTWI
   switch (spacecraftMode) {
     case 0:  // Safe Mode
@@ -203,13 +218,17 @@ void loop() {
         4) Transmit data just 5 seconds and don't listen for commands
       
         */
-            
+
+        digitalWrite(GPS_PIN, LOW);        // Setting pin to LOW (turn OFF)
+        digitalWrite(FIVE_VOLT_PIN, LOW);  // Setting pin to LOW (turn OFF)
+
         telemetryData.humidity = -1.0;
         telemetryData.temperature = -1.0;
         telemetryData.pressure = -1.0;
         telemetryData.localAltitude = -1.0;
-        
-        computePitchRollYaw(); // Data that might be of importance
+
+        computePitchRollYaw();  // Data that might be of importance
+
         telemetryData.pitch = pitch;
         telemetryData.roll = roll;
         telemetryData.yaw = yaw;
@@ -226,35 +245,37 @@ void loop() {
         }
 
         // Listen 4 seconds for incomming MCC commands
-            int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
-            uint8_t buflen = sizeof(buf);
+        int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
+        uint8_t buflen = sizeof(buf);
 
-            startTime = millis();
-            endTime = startTime;
+        startTime = millis();
+        endTime = startTime;
 
-            while ((endTime - startTime) <= 4000) {  // Listen radio for 4,000 ms while transmitting ack
-              if (rf_driver.recv(buf, &buflen) == 1) {
+        while ((endTime - startTime) <= 4000) {  // Listen radio for 4,000 ms while transmitting ack
+          if (rf_driver.recv(buf, &buflen) == 1) {
 
-                memcpy(&commandData, buf, sizeof(commandData));
-                if(commandData.op == 6.0) { 
-                  executeCommand(6.0); // Reboot OBCs command
-                }
-                
-                // Transmit an ack message for X seconds (could be the same telemetry data with the SC mode)
-                unsigned long startTime2 = millis();
-                unsigned long endTime2 = startTime2;
-                while ((endTime2 - startTime2) <= 5000) {  // Transmit ack for 5,000 ms // 5k
-                  systemData.mode = spacecraftMode;        // Update with new mode
-                  transmitData();                  
-                  endTime2 = millis();
-                }
-                break;  // end 'if' and break while loop
-              }              
-              endTime = millis();
+            memcpy(&commandData, buf, sizeof(commandData));
+            if (commandData.op == 6.0) {
+              executeCommand(6.0);  // Reboot OBCs command
             }
 
-        // Send sleep command to SAT_B and then sleep spacecraft        
-        sendDataI2C(6);  // Send sleep command to peripheral (9 mins, 4 seconds calculated) and/or sync RTC with GPS
+            // Transmit an ack message for X seconds (could be the same telemetry data with the SC mode)
+            unsigned long startTime2 = millis();
+            unsigned long endTime2 = startTime2;
+            while ((endTime2 - startTime2) <= 5000) {  // Transmit ack for 5,000 ms // 5k
+              systemData.mode = spacecraftMode;        // Update with new mode
+              transmitData();
+              endTime2 = millis();
+            }
+            break;  // end 'if' and break while loop
+          }
+          endTime = millis();
+        }
+
+        // Send sleep command to SAT_B and then sleep spacecraft
+        // sendDataI2C(6);  // Send sleep command  to peripheral (9 mins, 4 seconds calculated) and/or sync RTC with GPS
+
+        sendDataI2C(8);  // Send SUDO sleep command to peripheral (9 mins, 4 seconds calculated), no GPS-RTC sync
         deepSleep(2);    // sleep SAT_A 9 mins, 50 sec
 
         break;
@@ -330,6 +351,17 @@ void loop() {
 
         */
 
+        // digitalWrite(GPS_PIN, LOW);   // Setting pin to LOW (turn OFF)
+        // Manage GPS MOSFET: 10 minutes before RTC sync, turn it ON.
+        if ((rtcData.hours == 05 || rtcData.hours == 11 || rtcData.hours == 17 || rtcData.hours == 23) && rtcData.minutes >= 50) {
+          digitalWrite(GPS_PIN, HIGH);  // Setting pin to HIGH (turn ON)
+        }
+
+        // Leave GPS ON 20 mins, since synchronization may take up to five minutes.
+        if ((rtcData.hours == 05 || rtcData.hours == 12 || rtcData.hours == 18 || rtcData.hours == 00) && rtcData.minutes >= 10) {
+          digitalWrite(GPS_PIN, LOW);  // Setting pin to LOW (turn OFF)
+        }
+
         // if (rtcData.minutes == 17 || rtcData.minutes == 18 || rtcData.minutes == 19 || rtcData.minutes == 20 || rtcData.minutes == 21 || rtcData.minutes == 50) {
         if (rtcData.minutes == 0 || rtcData.minutes == 10 || rtcData.minutes == 20 || rtcData.minutes == 30 || rtcData.minutes == 40 || rtcData.minutes == 50) {
           // Make sure that only when time is on '0 seconds', execute and save data (gives consistency)
@@ -342,6 +374,8 @@ void loop() {
             baro = (bme.readPressure() / 100.0F);
             localAltitude = getLocalAltitude();
             computePitchRollYaw();
+
+            digitalWrite(FIVE_VOLT_PIN, LOW);  // Setting pin to LOW (turn OFF)
 
             // Could be a function 'updateVals()' but then hum, temp, etc, should be global vars
             telemetryData.humidity = hum;
@@ -360,7 +394,7 @@ void loop() {
             unsigned long startTime = millis();
             unsigned long endTime = startTime;
             while ((endTime - startTime) <= 5000) {  // Increase it so MCC listens
-              transmitData();              
+              transmitData();
               endTime = millis();
             }
             // Serial.print("\n M3");
@@ -374,7 +408,7 @@ void loop() {
 
             while ((endTime - startTime) <= 5000) {  // Listen radio for 5,000 ms while transmitting ack
               if (rf_driver.recv(buf, &buflen) == 1) {
-                
+
                 // Serial.print("\n M4"); // It is being triggered even though no signal is sent from MCC
 
                 memcpy(&commandData, buf, sizeof(commandData));
@@ -385,7 +419,7 @@ void loop() {
                 unsigned long endTime2 = startTime2;
                 while ((endTime2 - startTime2) <= 5000) {  // Transmit ack for 5,000 ms // 5k
                   systemData.mode = spacecraftMode;        // Update with new mode
-                  transmitData();                  
+                  transmitData();
                   endTime2 = millis();
                 }
                 break;  // end 'if' and break while loop
@@ -433,24 +467,65 @@ void loop() {
         // call again ESM to check time
         break;
       }
-    case 2:  // RTW mode
+    case 2:  // HIB mode
       {
-        // Real Time Weather (RTW) mode
+        // Hibernation (HIB) mode
         lastMode = spacecraftMode;
 
-        // Read BMP280 and DHT22 sensors
-        hum = dht.readHumidity();
-        temp = dht.readTemperature();
-        baro = (bme.readPressure() / 100.0F);
-        localAltitude = getLocalAltitude();
+        digitalWrite(GPS_PIN, LOW);        // Setting pin to LOW (turn OFF)
+        digitalWrite(FIVE_VOLT_PIN, LOW);  // Setting pin to LOW (turn OFF)
 
-        telemetryData.humidity = hum;
-        telemetryData.temperature = temp;
-        telemetryData.pressure = baro;
-        telemetryData.localAltitude = localAltitude;
-        telemetryData.pitch = 0.0;
-        telemetryData.roll = 0.0;
-        telemetryData.yaw = 0.0;
+        telemetryData.humidity = -1.0;
+        telemetryData.temperature = -1.0;
+        telemetryData.pressure = -1.0;
+        telemetryData.localAltitude = -1.0;
+
+        computePitchRollYaw();  // Data that might be of importance
+
+        telemetryData.pitch = pitch;
+        telemetryData.roll = roll;
+        telemetryData.yaw = yaw;
+
+        // Send telemetryData via I2C to peripheral slave for data saving
+        sendDataI2C(9);  // Send system data as SUDO (HIB)
+
+        // Transmitting 5 seconds
+        unsigned long startTime = millis();
+        unsigned long endTime = startTime;
+        while ((endTime - startTime) <= 5000) {
+          transmitData();
+          endTime = millis();
+        }
+
+        // Listen 5 seconds for incomming MCC commands
+        int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
+        uint8_t buflen = sizeof(buf);
+
+        startTime = millis();
+        endTime = startTime;
+
+        while ((endTime - startTime) <= 5000) {  // Listen radio for 5,000 ms while transmitting ack
+          if (rf_driver.recv(buf, &buflen) == 1) {
+
+            memcpy(&commandData, buf, sizeof(commandData));
+            executeCommand(commandData.op);  // Execute any command received
+
+            // Transmit an ack message for X seconds (could be the same telemetry data with the SC mode)
+            unsigned long startTime2 = millis();
+            unsigned long endTime2 = startTime2;
+            while ((endTime2 - startTime2) <= 5000) {  // Transmit ack for 5,000 ms // 5k
+              systemData.mode = spacecraftMode;        // Update with new mode
+              transmitData();
+              endTime2 = millis();
+            }
+            break;  // end 'if' and break while loop
+          }
+          endTime = millis();
+        }
+
+        // Send sleep command to SAT_B and then sleep spacecraft
+        sendDataI2C(6);  // Send sleep command  to peripheral (9 mins, 4 seconds calculated) and/or sync RTC with GPS
+        deepSleep(2);    // sleep SAT_A 9 mins, 50 sec
 
         break;
       }
@@ -458,6 +533,7 @@ void loop() {
       {
         // Real Time IMU (RTI) mode
         lastMode = spacecraftMode;
+        digitalWrite(GPS_PIN, LOW);  // Setting pin to LOW (turn OFF)
 
         // Read MPU9250 sensor
         computePitchRollYaw();
@@ -474,7 +550,9 @@ void loop() {
       }
     case 4:  // RTWI mode
       {
+        // Real Time Weather + IMU (RTWI) mode
         lastMode = spacecraftMode;
+        digitalWrite(GPS_PIN, LOW);  // Setting pin to LOW (turn OFF)
 
         // Read both BMP280, DHT22 & MPU9250 sensors (very power hungry)
         hum = dht.readHumidity();
@@ -503,8 +581,8 @@ void loop() {
     listenReceiver();
   }
 
-  // delay(500);
-  delay(250);  // <- delay void loop // 250 // 450: and MCC receives every 3 secs
+
+  // delay(250);  // <- delay void loop // 250
 }  // end void loop
 
 void transmitData() {
@@ -574,7 +652,7 @@ void sendDataI2C(int type) {
   } auxiliarData;
 
   switch (type) {
-    case 1:  // Send RTWI data
+    case 1:  // Send RTWI telemetry data
       auxiliarData.header = 1;
       auxiliarData.val1 = telemetryData.humidity;
       auxiliarData.val2 = telemetryData.temperature;
@@ -584,7 +662,7 @@ void sendDataI2C(int type) {
       auxiliarData.val6 = telemetryData.roll;
       auxiliarData.val7 = telemetryData.yaw;
       break;
-    case 2:  // Send RT system data
+    case 2:  // Send RTWI system data
       auxiliarData.header = 2;
       auxiliarData.val1 = systemData.mode;  // mode is an integer, see if no conflict arises with float of struct
       auxiliarData.val2 = systemData.voltage;
@@ -604,7 +682,7 @@ void sendDataI2C(int type) {
       auxiliarData.val6 = 0.0;
       auxiliarData.val7 = 0.0;
       break;
-    case 4:  // Send telemetry data as SUDO (ESM)
+    case 4:                     // Send telemetry data as SUDO (ESM)
       auxiliarData.header = 4;  // SUDO save telemetry data: Don't check validTime on SAT_B
       auxiliarData.val1 = telemetryData.humidity;
       auxiliarData.val2 = telemetryData.temperature;
@@ -624,7 +702,7 @@ void sendDataI2C(int type) {
       auxiliarData.val6 = 0.0;
       auxiliarData.val7 = 0.0;
       break;
-    case 6:  // Order SAT_B to activate sleep mode
+    case 6:                     // SAT_B to activate sleep mode or sync RTC
       auxiliarData.header = 6;  // activate sleep mode on SAT_B
       auxiliarData.val1 = 0.0;
       auxiliarData.val2 = 0.0;
@@ -634,11 +712,31 @@ void sendDataI2C(int type) {
       auxiliarData.val6 = 0.0;
       auxiliarData.val7 = 0.0;
       break;
-    case 7: // reboot OBC SAT_B
-      auxiliarData.header = 7;  
+    case 7:  // Reboot OBC SAT_B
+      auxiliarData.header = 7;
       auxiliarData.val1 = 0.0;
       auxiliarData.val2 = 0.0;
       auxiliarData.val3 = 0.0;
+      auxiliarData.val4 = 0.0;
+      auxiliarData.val5 = 0.0;
+      auxiliarData.val6 = 0.0;
+      auxiliarData.val7 = 0.0;
+      break;
+    case 8:                     // Force SAT_B to deep sleep
+      auxiliarData.header = 8;  //Force sleep mode on SAT_B
+      auxiliarData.val1 = 0.0;
+      auxiliarData.val2 = 0.0;
+      auxiliarData.val3 = 0.0;
+      auxiliarData.val4 = 0.0;
+      auxiliarData.val5 = 0.0;
+      auxiliarData.val6 = 0.0;
+      auxiliarData.val7 = 0.0;
+      break;
+    case 9:  // Send system data as SUDO (HIB)
+      auxiliarData.header = 10;
+      auxiliarData.val1 = systemData.mode;
+      auxiliarData.val2 = systemData.voltage;
+      auxiliarData.val3 = systemData.internalTemp;
       auxiliarData.val4 = 0.0;
       auxiliarData.val5 = 0.0;
       auxiliarData.val6 = 0.0;
@@ -708,6 +806,7 @@ void deepSleep(int flag) {
     LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
   }
 }
+
 void (*resetFunc)(void) = 0;  // declare reset fuction at address 0
 
 void executeCommand(float command) {
@@ -727,13 +826,14 @@ void executeCommand(float command) {
     // spacecraftMode = 0; // perhaps I shouldn't have this line (since anyone could send command 0 and trigger it)
   } else if (command == 1.0) {  // Activate ESM mode
     spacecraftMode = 1;
+    // digitalWrite(GPS_PIN, LOW);  // Setting pin to LOW (turn OFF)
     systemData.mode = spacecraftMode;
-    delay(5000);
+    delay(2000);
     transmitData();             // To ack
   } else if (command == 2.0) {  // Reset local altitude
     resetPressureGroundLevel();
     // spacecraftMode = 1; // return to default (?)
-  } else if (command == 3.0) {  // Activate RTW mode
+  } else if (command == 3.0) {  // Activate HIB mode
     spacecraftMode = 2;
   } else if (command == 4.0) {  // Activate RTI mode
     spacecraftMode = 3;
@@ -800,8 +900,17 @@ void checkTriggerSM(int lastMode) {
   Checks for a trigger condition to activate SafeMode  
   */
 
-  systemData.voltage = getBatteryVoltage();
-  systemData.internalTemp = getInternalTemperature();
+  // Safe, ESM or Hibernation mode
+  if (spacecraftMode == 0 || spacecraftMode == 1 || spacecraftMode == 2) {
+    digitalWrite(FIVE_VOLT_PIN, HIGH);  // Setting pin to HIGH (turn ON)
+    delay(100);
+    systemData.voltage = getBatteryVoltage();
+    systemData.internalTemp = getInternalTemperature();
+    // FIVE_VOLT_PIN would be turned off in its corresponding mode
+  } else {  // Real time modes already have the 5V line open
+    systemData.voltage = getBatteryVoltage();
+    systemData.internalTemp = getInternalTemperature();
+  }
 
   /*
   Battery management idea:
