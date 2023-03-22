@@ -72,6 +72,7 @@ int spacecraftMode = 4;
 int lastMode = 4;           // should be same as spacecraftMode when compiling
 float pressureGroundLevel;  // Current pressure when CubeSat started
 float pitch, roll, yaw;     // Inertial Measurement Unit variables
+bool isCommandReceived;
 
 /*
  TODO: 
@@ -180,11 +181,9 @@ void setup() {
 
 void loop() {
   float hum, temp, baro, localAltitude;
-  checkTriggerSM(lastMode);  // Safe mode trigger condition checking
+  // Safe mode trigger condition checking
+  checkTriggerSM(lastMode);  // Turns ON 5V line
   systemData.mode = spacecraftMode;
-
-  // digitalWrite(GPS_PIN, HIGH); // Setting pin to HIGH (turn ON)
-  // digitalWrite(GPS_PIN, LOW);// Setting pin to LOW (turn OFF)
 
   // Modes -> 0: Safe Mode, 1: ESM, 2: RTW, 3: RTI, 4: RTWI
   switch (spacecraftMode) {
@@ -245,7 +244,8 @@ void loop() {
         }
 
         // Listen 4 seconds for incomming MCC commands
-        int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
+        // int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
+        int8_t buf[sizeof(commandData)];
         uint8_t buflen = sizeof(buf);
 
         startTime = millis();
@@ -310,6 +310,7 @@ void loop() {
 
         */
         lastMode = spacecraftMode;
+        isCommandReceived = false;  // Reset var
 
         // Ask SAT_B for mission clock time via I2C
         Wire.requestFrom(8, 7);  // request 7 bytes from peripheral device #8 (device#, bytes) (6 bytes before initDay etc)
@@ -319,9 +320,6 @@ void loop() {
           Wire.read();
         }
 
-        // Serial.print("\nESM, rtcData.minutes: " + String(rtcData.minutes));
-
-        // Serial.print("\nM1: " + String(rtcData.minutes));
 
 
         // NOTE: real sync should be at rtcData.hours == 06h00, 12h00, 18h00, 00h00
@@ -334,22 +332,7 @@ void loop() {
             SAT_B would ignore the current sleep command and start syncing its RTC with GPS.
             After syncing it would RESET and then stay awake, until next ESM command from SAT_A.
           */
-        // if (rtcData.minutes == 0 || rtcData.minutes == 5 || rtcData.minutes == 10 || tcData.minutes == 15) {
-        //   sendDataI2C(8);  // Send update RTC with GPS command to peripheral
 
-        // }
-
-        /*
-          It looks like SAT_A and SAT_B are waking up late, after the first sleep,
-          hence avoiding the 'if (rtcData.seconds == 0) {' statement:
-
-          22:40:03.643 -> 
-          22:40:03.643 -> M1: 40
-          22:40:03.643 -> M2: 5
-          22:40:04.535 -> M1: 40
-          22:40:04.535 -> M2: 5
-
-        */
 
         // digitalWrite(GPS_PIN, LOW);   // Setting pin to LOW (turn OFF)
         // Manage GPS MOSFET: 10 minutes before RTC sync, turn it ON.
@@ -358,11 +341,11 @@ void loop() {
         }
 
         // Leave GPS ON 20 mins, since synchronization may take up to five minutes.
-        if ((rtcData.hours == 05 || rtcData.hours == 12 || rtcData.hours == 18 || rtcData.hours == 00) && rtcData.minutes >= 10) {
+        if ((rtcData.hours == 06 || rtcData.hours == 12 || rtcData.hours == 18 || rtcData.hours == 00) && rtcData.minutes >= 10) {
           digitalWrite(GPS_PIN, LOW);  // Setting pin to LOW (turn OFF)
         }
 
-        // if (rtcData.minutes == 17 || rtcData.minutes == 18 || rtcData.minutes == 19 || rtcData.minutes == 20 || rtcData.minutes == 21 || rtcData.minutes == 50) {
+
         if (rtcData.minutes == 0 || rtcData.minutes == 10 || rtcData.minutes == 20 || rtcData.minutes == 30 || rtcData.minutes == 40 || rtcData.minutes == 50) {
           // Make sure that only when time is on '0 seconds', execute and save data (gives consistency)
           // Serial.print("\nM2: " + String(rtcData.seconds));
@@ -397,47 +380,67 @@ void loop() {
               transmitData();
               endTime = millis();
             }
-            // Serial.print("\n M3");
 
             // Listen 5 seconds for incomming MCC commands
-            int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
+            // int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
+            int8_t buf[sizeof(commandData)];
             uint8_t buflen = sizeof(buf);
 
             startTime = millis();
             endTime = startTime;
 
             while ((endTime - startTime) <= 5000) {  // Listen radio for 5,000 ms while transmitting ack
-              if (rf_driver.recv(buf, &buflen) == 1) {
 
-                // Serial.print("\n M4"); // It is being triggered even though no signal is sent from MCC
-
+              if (rf_driver.recv(buf, &buflen)) {
                 memcpy(&commandData, buf, sizeof(commandData));
-                executeCommand(commandData.op);
+
+                // Change the SC mode
+                executeCommand(commandData.op);  // Execute any command received
+                if (commandData.op == 1.0) {
+                  isCommandReceived = false;
+                } else {
+                  isCommandReceived = true;
+                }
+
+
+                // Looks like is receiving even without MCC sending commands !!!
+                /*
+                  The reason seems to be because MCC sends many times the command 1.0 to Delta-1. Then Delta-1 executes the first time it receives the command, but it kind of receives another one and keeps it in its internal buffer, hence, next time it wakes, is 'receiving' a command, but in reality is the one stucked at buffer.
+
+                  Next time, if MCC isn't sending something, Delta-1 does not execute anything
+                */
+                // Serial.print("\nOP ");
+                // Serial.print(commandData.op);  // 1.00 although MCC sent nothing
 
                 // Transmit an ack message for X seconds (could be the same telemetry data with the SC mode)
                 unsigned long startTime2 = millis();
                 unsigned long endTime2 = startTime2;
-                while ((endTime2 - startTime2) <= 5000) {  // Transmit ack for 5,000 ms // 5k
+                while ((endTime2 - startTime2) <= 5000) {  // Transmit ack for 5,000 ms
                   systemData.mode = spacecraftMode;        // Update with new mode
                   transmitData();
                   endTime2 = millis();
                 }
                 break;  // end 'if' and break while loop
               }
-              // delay(20); // <-- consider adding a delay for listening radio transmissions
               endTime = millis();
             }
 
             // If no radio signal received, sleep SAT_B 9.7 mins and SAT_A 10 mins, awake and then repeat
 
-            // Send sleep command to SAT_B and then sleep spacecraft
-            sendDataI2C(6);  // Send sleep command to peripheral (9 mins, 4 seconds calculated) and/or sync RTC with GPS
-            deepSleep(2);    // sleep SAT_A 9 mins, 50 sec
+            if (isCommandReceived == false) {
+              // Send sleep command to SAT_B and then sleep spacecraft
+              sendDataI2C(6);  // Send sleep command  to peripheral (9 mins, 4 seconds calculated) and/or sync RTC with GPS
+              deepSleep(2);    // sleep SAT_A 9 mins, 50 sec
+            }                  // Else, isCommand received is true, and break this case
 
-          }       // end (if seconds == 0)
-        } else {  // end (if minutes == 0,10,20,...,50)
+
+          }       // end (if 0 >= seconds <= 10)
+        } else {  // end (if minutes == 0,10,20,30,40 or 50)
           int sleepSeconds;
           int loops = 0;
+
+          // Test if doesn't affect when waking up
+          digitalWrite(FIVE_VOLT_PIN, LOW);  // Setting pin to LOW (turn OFF)
 
           if (rtcData.minutes > 0 && rtcData.minutes < 9) {
             sleepSeconds = (10 - rtcData.minutes) * 60;
@@ -471,6 +474,7 @@ void loop() {
       {
         // Hibernation (HIB) mode
         lastMode = spacecraftMode;
+        isCommandReceived = false;  // Reset var
 
         digitalWrite(GPS_PIN, LOW);        // Setting pin to LOW (turn OFF)
         digitalWrite(FIVE_VOLT_PIN, LOW);  // Setting pin to LOW (turn OFF)
@@ -498,34 +502,48 @@ void loop() {
         }
 
         // Listen 5 seconds for incomming MCC commands
-        int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
+        // int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
+        int8_t buf[sizeof(commandData)];
         uint8_t buflen = sizeof(buf);
 
         startTime = millis();
         endTime = startTime;
 
         while ((endTime - startTime) <= 5000) {  // Listen radio for 5,000 ms while transmitting ack
-          if (rf_driver.recv(buf, &buflen) == 1) {
 
+          if (rf_driver.recv(buf, &buflen)) {
             memcpy(&commandData, buf, sizeof(commandData));
+
+            // Change the SC mode
             executeCommand(commandData.op);  // Execute any command received
+            if (commandData.op == 3.0) {
+              isCommandReceived = false;
+            } else {
+              isCommandReceived = true;
+            }
+
+            // Serial.print("\nOP ");
+            // Serial.print(commandData.op);  // 3.00 although MCC sent nothing
 
             // Transmit an ack message for X seconds (could be the same telemetry data with the SC mode)
             unsigned long startTime2 = millis();
             unsigned long endTime2 = startTime2;
-            while ((endTime2 - startTime2) <= 5000) {  // Transmit ack for 5,000 ms // 5k
+            while ((endTime2 - startTime2) <= 5000) {  // Transmit ack for 5,000 ms
               systemData.mode = spacecraftMode;        // Update with new mode
               transmitData();
               endTime2 = millis();
             }
             break;  // end 'if' and break while loop
           }
+
           endTime = millis();
         }
 
-        // Send sleep command to SAT_B and then sleep spacecraft
-        sendDataI2C(6);  // Send sleep command  to peripheral (9 mins, 4 seconds calculated) and/or sync RTC with GPS
-        deepSleep(2);    // sleep SAT_A 9 mins, 50 sec
+        if (isCommandReceived == false) {
+          // Send sleep command to SAT_B and then sleep spacecraft
+          sendDataI2C(6);  // Send sleep command  to peripheral (9 mins, 4 seconds calculated) and/or sync RTC with GPS
+          deepSleep(2);    // sleep SAT_A 9 mins, 50 sec
+        }                  // Else, isCommand received is true, and break this case
 
         break;
       }
@@ -573,7 +591,7 @@ void loop() {
       }
   }
 
-  if (spacecraftMode != 0 && spacecraftMode != 1) {
+  if (spacecraftMode != 0 && spacecraftMode != 1 && spacecraftMode != 2) {
     // Send telemetryData via I2C to peripheral slave. 1: telemetry data, 2 system data (not SUDO)
     sendDataI2C(1);
     sendDataI2C(2);
@@ -619,7 +637,8 @@ void transmitData() {
 }
 
 void listenReceiver() {
-  int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
+  // int8_t buf[RH_ASK_MAX_MESSAGE_LEN];
+  int8_t buf[sizeof(commandData)];
   uint8_t buflen = sizeof(buf);
   // Turns the receiver on if it not already on, returns true if there's a valid message
   if (rf_driver.recv(buf, &buflen) == 1) {
@@ -826,10 +845,9 @@ void executeCommand(float command) {
     // spacecraftMode = 0; // perhaps I shouldn't have this line (since anyone could send command 0 and trigger it)
   } else if (command == 1.0) {  // Activate ESM mode
     spacecraftMode = 1;
-    // digitalWrite(GPS_PIN, LOW);  // Setting pin to LOW (turn OFF)
     systemData.mode = spacecraftMode;
-    delay(2000);
-    transmitData();             // To ack
+    // delay(2000);
+    // transmitData();             // To ack
   } else if (command == 2.0) {  // Reset local altitude
     resetPressureGroundLevel();
     // spacecraftMode = 1; // return to default (?)
@@ -900,17 +918,10 @@ void checkTriggerSM(int lastMode) {
   Checks for a trigger condition to activate SafeMode  
   */
 
-  // Safe, ESM or Hibernation mode
-  if (spacecraftMode == 0 || spacecraftMode == 1 || spacecraftMode == 2) {
-    digitalWrite(FIVE_VOLT_PIN, HIGH);  // Setting pin to HIGH (turn ON)
-    delay(100);
-    systemData.voltage = getBatteryVoltage();
-    systemData.internalTemp = getInternalTemperature();
-    // FIVE_VOLT_PIN would be turned off in its corresponding mode
-  } else {  // Real time modes already have the 5V line open
-    systemData.voltage = getBatteryVoltage();
-    systemData.internalTemp = getInternalTemperature();
-  }
+  digitalWrite(FIVE_VOLT_PIN, HIGH);  // Always setting pin to HIGH (turn ON)
+  delay(200);
+  systemData.voltage = getBatteryVoltage();
+  systemData.internalTemp = getInternalTemperature();
 
   /*
   Battery management idea:

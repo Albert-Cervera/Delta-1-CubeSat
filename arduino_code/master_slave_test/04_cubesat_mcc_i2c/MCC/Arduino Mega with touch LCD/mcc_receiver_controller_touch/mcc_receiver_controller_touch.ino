@@ -1297,10 +1297,17 @@ void sendCommandAndListen(float command, int seconds, bool altitudReset) {
           }
         } else {
           // Only if another spacecraft mode different from ESM is received
-          if (systemData.mode != 1) {
+          // Wrong, change it to lastMode
+          int againstMode;
+          if (command = 5.0) {  // RTWI-11
+            againstMode = 1;
+          } else { // Reboot OBCs
+            againstMode = 0;
+          }
+          if (systemData.mode != againstMode) {
             rcvd = true;
             break;  // leave this while loop
-          }
+          }          
         }
 
       }  // end if received
@@ -3349,7 +3356,6 @@ void m12b1action() {
   tft.setCursor(12, 213);
   tft.setTextColor(RED);
   tft.setTextSize(2);
-  // tft.println("Sending TX for ESM OFF ...");
   tft.println("TX REBOOT OBC ...");
 
   // Transmit command 3 seconds
@@ -3376,7 +3382,6 @@ void m12b2action() {
   tft.setCursor(12, 213);
   tft.setTextColor(RED);
   tft.setTextSize(2);
-  // tft.println("Sending TX for ESM OFF ...");
   tft.println("TX REBOOT OBC ...");
 
   // Transmit command  for 11 minutes, but listen in between for incomming transmission. 660 secs
@@ -3405,7 +3410,6 @@ void m13b1action() {
   tft.setCursor(12, 213);
   tft.setTextColor(RED);
   tft.setTextSize(2);
-  // tft.println("Sending TX for ESM OFF ...");
   tft.println("TX ESM ON ...");
 
   // Transmit command 3 seconds
@@ -3424,7 +3428,6 @@ void m13b2action() {
   tft.setCursor(12, 213);
   tft.setTextColor(RED);
   tft.setTextSize(2);
-  // tft.println("Sending TX for ESM OFF ...");
   tft.println("TX ESM OFF ...");
 
   // Transmit command  for 11 minutes, but listen in between for incomming transmission. 660 secs
@@ -3479,7 +3482,7 @@ void m13b5action() {
   clearMessage();
   tft.setCursor(12, 213);
   tft.setTextColor(RED);
-  tft.setTextSize(2);  
+  tft.setTextSize(2);
   tft.println("TX HIB ON ...");
 
   // Transmit command 3 seconds
