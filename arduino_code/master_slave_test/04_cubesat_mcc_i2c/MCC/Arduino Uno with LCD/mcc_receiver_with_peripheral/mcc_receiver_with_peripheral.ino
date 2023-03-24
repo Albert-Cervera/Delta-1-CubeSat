@@ -51,12 +51,19 @@
 // #include <SPI.h> // Include dependant SPI Library
 
 // Create Amplitude Shift Keying Object
-RH_ASK rf_driver(2000, 11, 6, 0);  // Params: speed in BPS, rxPin, txPin, pttPin <-- Receive on PIN 11 and send on PIN 6 (Before A5,A4)
+RH_ASK rf_driver(2000, 7, 6, 0);  // Params: speed in BPS, rxPin, txPin, pttPin <-- Receive on PIN 11 and send on PIN 6 (Before A5,A4) // pin 11 to receive was set before
 
-#define RS 12
-#define EN 13
+/*
+  Ethernet shield attached to pins 10, 11, 12, 13
+  Pins 11,12,13 are used by the Ethernet shield, so I need
+  to repurpose them.
+
+*/
+
+#define RS 8 // 12
+#define EN 9 // 13
 #define D4 5
-#define D5 4
+#define D5 6 //4
 #define D6 3
 #define D7 2
 
@@ -79,7 +86,7 @@ char hexaKeys[ROWS][COLS] = {
   { '*', '0', '#', 'D' }
 };
 
-byte rowPins[ROWS] = { 10, 9, 8, 7 };     // 9 to 6 in example, 10 to 7 digital in real
+byte rowPins[ROWS] = {0,0,0,0}; // = { 10, 9, 8, 7 };     // 9 to 6 in example, 10 to 7 digital in real
 byte colPins[COLS] = { A0, A1, A2, A3 };  // 5 to 2 in example, A0 to A3 in real
 
 // 28 bytes size and 7 elements (4 bytes each(?))

@@ -334,9 +334,11 @@ void loop() {
           */
 
 
+        // CHANGE to rtcData.minutes >= 50 in production
+
         // digitalWrite(GPS_PIN, LOW);   // Setting pin to LOW (turn OFF)
         // Manage GPS MOSFET: 10 minutes before RTC sync, turn it ON.
-        if ((rtcData.hours == 05 || rtcData.hours == 11 || rtcData.hours == 17 || rtcData.hours == 23) && rtcData.minutes >= 50) {
+        if ((rtcData.hours == 05 || rtcData.hours == 11 || rtcData.hours == 17 || rtcData.hours == 23) && rtcData.minutes >= 40) {
           digitalWrite(GPS_PIN, HIGH);  // Setting pin to HIGH (turn ON)
         }
 
