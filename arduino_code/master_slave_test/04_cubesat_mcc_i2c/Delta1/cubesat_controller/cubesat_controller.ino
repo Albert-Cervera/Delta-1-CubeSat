@@ -73,6 +73,7 @@ int lastMode = 4;           // should be same as spacecraftMode when compiling
 float pressureGroundLevel;  // Current pressure when CubeSat started
 float pitch, roll, yaw;     // Inertial Measurement Unit variables
 bool isCommandReceived;
+bool rtcSynced;
 
 /*
  TODO: 
@@ -108,7 +109,7 @@ struct commandStruct {
   float op;
 } commandData;
 
-// Size 7 bytes
+// Size 8 bytes
 struct missionClockStruct {
   uint8_t hours;
   uint8_t minutes;
@@ -116,6 +117,7 @@ struct missionClockStruct {
   uint8_t day;
   uint8_t month;
   int year;
+  bool isSynced;
 } rtcData;
 
 int initDay, initMonth, initYear, initHour, initMinute, initSecond;
@@ -159,7 +161,7 @@ void setup() {
   resetPressureGroundLevel();  // Read ground level pressure when initiating board
 
   // Ask SAT_B for mission clock time via I2C
-  Wire.requestFrom(8, 7);  // request 7 bytes from peripheral device #8 (device#, bytes) TODO: check the correct amount of bytes to receive
+  Wire.requestFrom(8, 8);  // request 8 bytes from peripheral device #8 (device#, bytes) TODO: check the correct amount of bytes to receive
   Wire.readBytes((byte *)&rtcData, sizeof rtcData);
   // // Ensures reading of all bytes from stream
   while (Wire.available()) {
@@ -173,6 +175,7 @@ void setup() {
   initDay = rtcData.day;
   initMonth = rtcData.month;
   initYear = rtcData.year;
+  rtcSynced = rtcData.isSynced;
 
   Wire.begin();  // join I2C bus (address optional for master)
   rf_driver.init();
@@ -313,14 +316,14 @@ void loop() {
         isCommandReceived = false;  // Reset var
 
         // Ask SAT_B for mission clock time via I2C
-        Wire.requestFrom(8, 7);  // request 7 bytes from peripheral device #8 (device#, bytes) (6 bytes before initDay etc)
+        Wire.requestFrom(8, 8);  // request 8 bytes from peripheral device #8 (device#, bytes) (6 bytes before initDay etc)
         Wire.readBytes((byte *)&rtcData, sizeof rtcData);
         // Ensures reading of all bytes from stream
         while (Wire.available()) {
           Wire.read();
         }
 
-
+        rtcSynced = rtcData.isSynced;
 
         // NOTE: real sync should be at rtcData.hours == 06h00, 12h00, 18h00, 00h00
         /* 
@@ -335,8 +338,7 @@ void loop() {
 
 
         // CHANGE to rtcData.minutes >= 50 in production
-
-        // digitalWrite(GPS_PIN, LOW);   // Setting pin to LOW (turn OFF)
+                
         // Manage GPS MOSFET: 10 minutes before RTC sync, turn it ON.
         if ((rtcData.hours == 05 || rtcData.hours == 11 || rtcData.hours == 17 || rtcData.hours == 23) && rtcData.minutes >= 40) {
           digitalWrite(GPS_PIN, HIGH);  // Setting pin to HIGH (turn ON)
@@ -612,6 +614,7 @@ void transmitData() {
     int mode = systemData.mode;
     float voltage = systemData.voltage;
     float internalTemp = systemData.internalTemp;
+    bool clockSynced = rtcSynced;
     // Boot time data
     int bootDay = initDay;
     int bootMonth = initMonth;

@@ -242,6 +242,7 @@ struct transferStruct {
   int mode;
   float voltage;
   float internalTemp;
+  bool clockSynced;
   int bootDay;
   int bootMonth;
   int bootYear;
@@ -463,7 +464,7 @@ void loop() {
     // Serial.print("\nbootHour: " + String(transferData.bootHour));
     // Serial.print("\nbootMinute: " + String(transferData.bootMinute));
     // Serial.print("\nbootSecond: " + String(transferData.bootSecond));
-
+    
     // Workaround for sending these data through I2C for SD storage
 
     initDay = transferData.bootDay;
@@ -1222,6 +1223,7 @@ void sendCommandAndListen(float command, int seconds, bool altitudReset) {
     float voltage;
     float internalTemp;
     int bootDay;
+    bool clockSynced;
     int bootMonth;
     int bootYear;
     int bootHour;
@@ -2773,6 +2775,11 @@ void m1b1action() {
   tft.setTextSize(2);
   tft.println("Internal Temp: " + String(systemData.internalTemp) + "\367" + "C");
 
+  tft.setCursor(22, 117);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("RTC Synced: " + String(transferData.clockSynced) );
+  
   tft.setCursor(22, 157);  // 22, 157
   tft.setTextColor(YELLOW);
   tft.setTextSize(1);

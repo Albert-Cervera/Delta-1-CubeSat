@@ -66,6 +66,9 @@ int lastSecondSavedSys, lastMinuteSavedSys;
 bool startSync = false;  // For RTC-GPS sync
 bool synced = false;
 
+// Var to send to SAT_A indicating if a succesful RTC sync was done
+bool lastSync = false; 
+
 /*
 auxiliarStruct: the idea is to copy every received struct
 from controller via I2C and depending on its header, save
@@ -97,6 +100,7 @@ struct missionClockStruct {
   uint8_t day;
   uint8_t month;
   int year;
+  bool isSynced;
 } rtcData;
 
 // Inititialization of instruments
@@ -337,17 +341,8 @@ bool validTimeToSave(int flag) {
   return false;
 }
 
-// Checks if is the correct UTC time to initiate RTC-GPS synchronization // ORIGINAL
-// bool validTimeToSync() {
-//   if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00) {
-//     // if ((myRTC.hours == 11 || myRTC.hours == 05 || myRTC.hours == 06 || myRTC.hours == 07 || myRTC.hours == 8 || myRTC.hours == 9 || myRTC.hours == 10 || myRTC.hours == 11 || myRTC.hours == 12 || myRTC.hours == 13 || myRTC.hours == 14) && myRTC.minutes == 00) {
-//     return true;
-//   } else {
-//     return false;
-//   }
-// }
-
-bool validTimeToSync() {
+// Checks if is the correct UTC time to initiate RTC-GPS synchronization
+bool validTimeToSync() {  
   if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 00 && synced == false) {
     return true;
   } else {
@@ -482,9 +477,11 @@ void requestEvent() {
   rtcData.day = myRTC.dayofmonth;
   rtcData.month = myRTC.month;
   rtcData.year = myRTC.year;
+  rtcData.isSynced = lastSync;
+  // rtcData.isSynced = true;
 
-  // Serial.print("\nrtcData.year: " + String(rtcData.year));
-
+  
+  // Serial.print("\nRE: " + String(rtcData.isSynced) );
   Wire.write((byte *)&rtcData, sizeof rtcData);
 }
 
@@ -566,6 +563,7 @@ void deepSleep() {
 void syncGPSDateTime(bool strictMode) {
   TinyGPSPlus gps;  // The TinyGPS++ object
   ss.begin(9600);
+  lastSync = false; // re-start original val
 
   int day, month, year, hour, minute, second;
   // String latitude, longitude, altitude;
@@ -604,6 +602,7 @@ void syncGPSDateTime(bool strictMode) {
                 // Update RTC with GPS UTC time
                 myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
                 synced = true;
+                lastSync = true;
                 break;
               }
             }
@@ -633,6 +632,7 @@ void syncGPSDateTime(bool strictMode) {
               // Update RTC with GPS UTC time
               myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
               synced = true;
+              lastSync = true;
               break;
             }
           }
@@ -644,6 +644,7 @@ void syncGPSDateTime(bool strictMode) {
     endTime = millis();
   }  // end while 3 or 9 mins
   ss.end();
+  // Serial.print("\nLS: " + String(lastSync));
 }
 
 
