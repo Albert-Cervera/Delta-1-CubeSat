@@ -49,7 +49,7 @@
 // Create Amplitude Shift Keying Object (Receive on PIN 7 and send on PIN 6)
 RH_ASK rf_driver(2000, 7, 6, 0);   // Params: speed in BPS, rxPin, txPin, pttPin
 virtuabotixRTC myRTC(25, 27, 29);  // Real Time Clock
-// String rcvdTime;                   // Time reference for last time a signal was
+String rcvdTime;                   // Time reference for last time a signal was
 
 // LCD configuration
 #define RS 8  // 12
@@ -138,6 +138,11 @@ void setup() {
   // Setup Serial Monitor
   Serial.begin(9600);
 
+  // SS, MM, HH, DW, DD, MM, YYYY
+  // myRTC.setDS1302Time(00, 31, 2, 1, 02, 04, 2023);
+  // Sync when time is about to change to second 52
+  // It had: Current Date / Time: 3/4/2023  8:40:59 on april 2nd at 20h23 UTC-6
+
   lcd.begin(16, 2);
   lcd.setCursor(0, 0);
   lcd.print("NASA - CubeSat 1");
@@ -216,7 +221,7 @@ void loop() {
   if (rf_driver.recv(buf, &buflen)) {  // rf_driver.recv(buf, &buflen) == 1
     // If data received ...
 
-    // rcvdTime = getTimestampTime();
+    rcvdTime = getTimestampTime();
 
     lastDataReceived = millis();
     memcpy(&transferData, buf, sizeof(transferData));
@@ -363,7 +368,7 @@ void webServer() {
           // client.println("<H1>MCC || Delta-1</H1>");
           client.println("<H1>Mission Control Center || Delta-1</H1>");
           
-          // client.print("Last transmission rcvd: " + rcvdTime);
+          client.print("Last transmission received: " + rcvdTime + " UTC");
 
 
           client.println("<hr />");
@@ -948,7 +953,7 @@ float heatIndexFullEquation(float T, float R) {
   return HI;
 }
 
-/*
+
 String setTwoDigits(uint8_t val) {
   if (val < 10) {
     return "0" + String(val);
@@ -966,7 +971,7 @@ String getTimestampTime() {
   myRTC.updateTime();
   return setTwoDigits(myRTC.hours) + ":" + setTwoDigits(myRTC.minutes) + ":" + setTwoDigits(myRTC.seconds);
 }
-*/
+
 
 // void sendDataI2C() {
 //   /*
