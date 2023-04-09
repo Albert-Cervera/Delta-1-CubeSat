@@ -45,11 +45,16 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <virtuabotixRTC.h>
+#include <TinyGPS++.h>
+#include <SoftwareSerial.h>  // Also for GPS ()
 
 // Create Amplitude Shift Keying Object (Receive on PIN 7 and send on PIN 6)
 RH_ASK rf_driver(2000, 7, 6, 0);   // Params: speed in BPS, rxPin, txPin, pttPin
 virtuabotixRTC myRTC(25, 27, 29);  // Real Time Clock
 String rcvdTime;                   // Time reference for last time a signal was
+String rcvdDate;
+String rtcUpdateTime;  // Time reference for last time MCC RTC was updated
+String rtcUpdateDate;
 
 // LCD configuration
 #define RS 8  // 12
@@ -68,6 +73,11 @@ char lastKey;
 char option;
 float heatIndex;
 int dataMode = 1;
+
+bool startSync = false;  // For RTC-GPS sync
+bool synced = false;
+bool isSafeMode = false;  // Bool indicating if Safe Mode has been
+// bool dataRcvd = false;    // Bool indicating if data has been received since boot
 
 // 28 bytes size and 7 elements (4 bytes each(?))
 struct telemetryStruct {
@@ -110,11 +120,27 @@ struct transferStruct {
   float yaw;
 } transferData;
 
+// Putting out og bound values to simplify min/max comparisons
+
+float minTemperature = 3000.0;
+float minHumidity = 3000.0;
+float minHeatIndex = 3000.0;
+float minPressure = 3000.0;
+float minInternalTemp = 3000.0;
+
+float maxTemperature = -3000.0;
+float maxHumidity = -3000.0;
+float maxHeatIndex = -3000.0;
+float maxPressure = -3000.0;
+float maxInternalTemp = -3000.0;
+
 struct commandStruct {
   float op;
 } commandData;
 
 int initDay, initMonth, initYear, initHour, initMinute, initSecond;
+
+SoftwareSerial ss(A12, A11);  // The serial connection to the GPS device:
 
 byte tx_buf[sizeof(commandData)] = { 0 };  // buffer for sending command data
 
@@ -139,7 +165,7 @@ void setup() {
   Serial.begin(9600);
 
   // SS, MM, HH, DW, DD, MM, YYYY
-  // myRTC.setDS1302Time(00, 31, 2, 1, 02, 04, 2023);
+  // myRTC.setDS1302Time(00, 38, 02, 1, 8, 4, 2023);
   // Sync when time is about to change to second 52
   // It had: Current Date / Time: 3/4/2023  8:40:59 on april 2nd at 20h23 UTC-6
 
@@ -188,7 +214,21 @@ void setup() {
 
 void loop() {
 
-  // myRTC.updateTime();
+  myRTC.updateTime();
+  
+  
+  /*
+    Reset min/max vals at midnight
+
+    Ideally, we would reset the vals at UTC midnight, but since
+    the CubeSat is placed somewhere at UTC-6, I'm gonna reset these
+    vals at local midnight which is at 6h00 UTC
+  */
+  if (myRTC.hours == 05 && myRTC.minutes == 59) {
+    resetMinMaxVals();
+  }
+
+  
 
   // // Start printing elements as individuals
   // Serial.print("Current Date / Time: ");
@@ -209,8 +249,6 @@ void loop() {
 
 
 
-
-
   // Receiver antenna code -----------------------------
   // Set buffer to size of expected message
   // int8_t buf[RH_ASK_MAX_MESSAGE_LEN];  // Set it to maximum size of 60 bytes, but not the actual expected size
@@ -222,6 +260,7 @@ void loop() {
     // If data received ...
 
     rcvdTime = getTimestampTime();
+    rcvdDate = getTimestampDate();
 
     lastDataReceived = millis();
     memcpy(&transferData, buf, sizeof(transferData));
@@ -245,9 +284,62 @@ void loop() {
     telemetryData.roll = transferData.roll;
     telemetryData.yaw = transferData.yaw;
 
+    // ---------------- Update these vals
+
+    heatIndex = computeHeatIndex(telemetryData.temperature, telemetryData.humidity);
+
+    // if (dataRcvd == true) {  // update this val
+    //   // Data has been received since last boot
+    // }
+
+
+    // Min values
+    if (telemetryData.temperature < minTemperature) {
+      minTemperature = telemetryData.temperature;
+    }
+    if (telemetryData.humidity < minHumidity) {
+      minHumidity = telemetryData.humidity;
+    }
+    if (heatIndex < minHeatIndex) {
+      minHeatIndex = heatIndex;
+    }
+    if (telemetryData.pressure < minPressure) {
+      minPressure = telemetryData.pressure;
+    }
+    if (systemData.internalTemp < minInternalTemp) {
+      minInternalTemp = systemData.internalTemp;
+    }
+
+    // Max values
+    if (telemetryData.temperature > maxTemperature) {
+      maxTemperature = telemetryData.temperature;
+    }
+    if (telemetryData.humidity > maxHumidity) {
+      maxHumidity = telemetryData.humidity;
+    }
+    if (heatIndex > maxHeatIndex) {
+      maxHeatIndex = heatIndex;
+    }
+    if (telemetryData.pressure > maxPressure) {
+      maxPressure = telemetryData.pressure;
+    }
+    if (systemData.internalTemp > maxInternalTemp) {
+      maxInternalTemp = systemData.internalTemp;
+    }
+
+
+
+
+    if (systemData.mode == 0) {
+      // Safe mode detected
+      isSafeMode = true;
+      // Maybe add some HTML var that if SM is detected, is printed loudy.
+    } else {
+      isSafeMode = false;
+    }
+
 
     // sendDataI2C(); // Send telemetryData via I2C to peripheral slave
-    // setUI(key);
 
 
   } else if ((rf_driver.recv(buf, &buflen) == 0)) {
@@ -266,6 +358,19 @@ void loop() {
       lcd.setCursor(0, 1);
       lcd.print("from CubeSat");
     }
+  }
+
+  if (validTimeToSync()) {  // Sync with GPS
+    startSync = true;
+  }
+
+  if (startSync == true) {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Syncing RTC ...");
+
+    syncGPSDateTime(true);  // Strict Mode
+    startSync = false;
   }
 
   lcd.clear();
@@ -287,7 +392,7 @@ void loop() {
 }  // end void loop
 
 void webServer() {
-  heatIndex = computeHeatIndex(telemetryData.temperature, telemetryData.humidity);
+  // heatIndex = computeHeatIndex(telemetryData.temperature, telemetryData.humidity);
 
   // listen for incoming clients
   EthernetClient client = server.available();
@@ -304,23 +409,24 @@ void webServer() {
         // so you can send a reply
         if (c == '\n' && currentLineIsBlank) {
 
-          client.println("HTTP/1.1 200 OK");  //send new page
-          client.println("Content-Type: text/html"); // original          
-          client.println("Refresh: 30");
+          client.println("HTTP/1.1 200 OK");          //send new page
+          client.println("Content-Type: text/html");  // original
+          client.println("Refresh: 60");
           client.println();
           client.println("<HTML>");
           client.println("<HEAD>");
           client.println("<meta name='apple-mobile-web-app-capable' content='yes' />");
           client.println("<meta name='apple-mobile-web-app-status-bar-style' content='black-translucent' />");
           client.println("<link rel='stylesheet' type='text/css' href='https://randomnerdtutorials.com/ethernetcss.css' />");
-          
-          client.println("<TITLE>MCC || Delta-1</TITLE>");  // MCC Delta-1
-         
-         // client.println("<link rel='icon' type='image/ico' href='https://www.pikpng.com/pngl/b/87-879496_nasa-logo-clipart.png'/></head>");
-         
-          client.println(" <link rel='icon' type='image/png' href='https://www.nasa.gov/sites/all/themes/custom/nasatwo/images/apple-touch-icon-76x76.png'> ");
 
-          client.println(" <link rel='apple-touch-icon' href='https://www.nasa.gov/sites/all/themes/custom/nasatwo/images/apple-touch-icon-76x76.png'> ");
+          client.println("<TITLE>MCC || Delta-1</TITLE>");  // MCC Delta-1
+
+          // client.println("<link rel='icon' type='image/ico' href='https://www.pikpng.com/pngl/b/87-879496_nasa-logo-clipart.png'/></head>");
+
+          // Favicon:
+          client.println(" <link rel='icon' type='image/png' href='https://www.linkpicture.com/q/android-chrome-512x512_6.png'> ");
+
+          client.println(" <link rel='apple-touch-icon' href='https://www.linkpicture.com/q/android-chrome-512x512_6.png'> ");
 
           /*
 
@@ -331,9 +437,14 @@ void webServer() {
           image/x-icon
           <link rel='icon' type='image/png' href='https://europe1.discourse-cdn.com/arduino/optimized/3X/c/c/cc4b0921af3d89006e843364a2b18989ad72f83e_2_32x32.png'>
 
+
+          Delta-V favicon:
+
+          https://www.linkpicture.com/q/android-chrome-512x512_6.png
+
           */
 
-          
+
 
           client.println("</HEAD>");
           // client.println("<BODY>");
@@ -342,6 +453,7 @@ void webServer() {
 
           client.println("<img src='https://www.linkpicture.com/q/delta-v-final_logo_Mesa-de-trabajo-1-copy.png' alt='Delta-V logo' style='width:330px;height:330px;' > ");
 
+          // Background image:
           client.println("<style>             body {               background-image: url('https://wallup.net/wp-content/uploads/2016/01/192171-landscape-sunrise-Mars.jpg'); background-repeat: no-repeat;background-attachment: fixed;background-size: cover;} </style>");
 
           /*
@@ -355,6 +467,11 @@ void webServer() {
             }
             </style>
 
+
+            https://scitechdaily.com/images/Curiosity-Selfie-Hutton-Drill-Site-Crop-scaled.jpg
+
+            https://wallup.net/wp-content/uploads/2016/01/192171-landscape-sunrise-Mars.jpg
+
           */
 
           /* 
@@ -367,8 +484,10 @@ void webServer() {
 
           // client.println("<H1>MCC || Delta-1</H1>");
           client.println("<H1>Mission Control Center || Delta-1</H1>");
-          
+
           client.print("Last transmission received: " + rcvdTime + " UTC");
+          client.println("<br />");
+          client.print("Date: " + rcvdDate);
 
 
           client.println("<hr />");
@@ -381,33 +500,54 @@ void webServer() {
           client.print(telemetryData.temperature);
           client.print(" &#176C");
 
+          client.print("<p>Min: " + String(minTemperature) + " &#176C" + " || Max: " + String(maxTemperature) + " &#176C </p>");
+          ;
+
           client.print("<h3>Humidity: </h3>");
           client.print(telemetryData.humidity);
           client.print(" %");
+
+          client.print("<p>Min: " + String(minHumidity) + " %" + " || Max: " + String(maxHumidity) + " % </p>");
+          ;
 
           client.print("<h3>Heat Index: </h3>");
           client.print(heatIndex);
           client.print(" &#176C");
 
+          client.print("<p>Min: " + String(minHeatIndex) + " &#176C" + " || Max: " + String(maxHeatIndex) + " &#176C </p>");
+          ;
+
           client.print("<h3>Barometer: </h3>");
           client.print(telemetryData.pressure);
           client.print(" hPa");
+
+          client.print("<p>Min: " + String(minPressure) + " hPa" + " || Max: " + String(maxPressure) + " hPa </p>");
+          ;
 
           client.print("<h3>Local Altitude: </h3>");
           client.print(telemetryData.localAltitude);
           client.print(" m");
 
-          client.print("<h3>X: </h3>");
-          client.print(telemetryData.pitch);
-          client.print(" &#176");
+          // ----------------- IMU data
+          // client.print("Date: " + rcvdDate);
 
-          client.print("<h3>Y: </h3>");
-          client.print(telemetryData.roll);
-          client.print(" &#176");
+          client.print("<h3>X: " + String(telemetryData.pitch) + " &#176 </h3>");
+          // client.print("<h3>X: </h3>");
 
-          client.print("<h3>Z: </h3>");
-          client.print(telemetryData.yaw);
-          client.print(" &#176");
+          // client.print(telemetryData.pitch);
+          // client.print(" &#176");
+
+          // client.print("<h3>Y: </h3>");
+          // client.print(telemetryData.roll);
+          // client.print(" &#176");
+          client.print("<h3>Y: " + String(telemetryData.roll) + " &#176 </h3>");
+
+          // client.print("<h3>Z: </h3>");
+          // client.print(telemetryData.yaw);
+          // client.print(" &#176");
+          client.print("<h3>Z: " + String(telemetryData.yaw) + " &#176 </h3>");
+
+          // -----------------
 
           // client.println("<br />");
           client.println("<hr />");
@@ -428,6 +568,11 @@ void webServer() {
 
           client.print("<h3 style='color:white;'>Internal Temperature: </h3>");
           client.print("<p style='color:white;'>" + String(systemData.internalTemp) + " &#176" + "</p>");
+
+          client.print("<p style='color:white;'>Min: " + String(minInternalTemp) + " &#176C" + " || Max: " + String(maxInternalTemp) + " &#176C </p>");
+          ;
+
+
           // client.print(systemData.internalTemp);
           // client.print(" &#176");
 
@@ -449,8 +594,22 @@ void webServer() {
           client.println("<p><a href='https://github.com/Albert-Cervera/Delta-1-CubeSat' target='_blank'>GitHub</a></p>");
 
 
-        
-          
+
+
+
+          client.println("<br />");
+
+          client.println("<p style='color:white;'>  MCC Server RTC updated at: </p>");
+          client.print("<p style='color:white;'>" + rtcUpdateTime + +" UTC, on " + rtcUpdateDate + "</p>");
+
+
+          // client.print("Last transmission received: " + rcvdTime + " UTC");
+          // client.println("<br />");
+          // client.print("Date: " + rcvdDate);
+
+
+
+
 
           // Good sizes: 430x215, or 330x165
 
@@ -970,6 +1129,136 @@ String getTimestampDate() {
 String getTimestampTime() {
   myRTC.updateTime();
   return setTwoDigits(myRTC.hours) + ":" + setTwoDigits(myRTC.minutes) + ":" + setTwoDigits(myRTC.seconds);
+}
+
+// Gets UTC time via GPS and syncs RTC
+void syncGPSDateTime(bool strictMode) {
+  TinyGPSPlus gps;  // The TinyGPS++ object
+  ss.begin(9600);
+
+  int day, month, year, hour, minute, second;
+  // String latitude, longitude, altitude;
+  unsigned long startTime = millis();
+  unsigned long endTime = startTime;
+  bool gpsDate, gpsTime = false;
+
+  // 9 mins = 540 secs = 540000 ms
+  // 3 mins = 180 secs = 180000 ms
+  while ((endTime - startTime) <= 180000) {  // Try to sync 3 mins
+    if (ss.available() > 0) {
+      if (gps.encode(ss.read())) {
+
+        if (strictMode == true) {
+
+          // Strict Mode: Requires a fixed location to sync time
+          if (gps.location.isValid()) {
+
+            if (gps.date.isValid()) {
+              day = gps.date.day();
+              month = gps.date.month();
+              year = gps.date.year();
+              gpsDate = true;
+            }
+
+            if (gps.time.isValid()) {
+              hour = gps.time.hour();
+              minute = gps.time.minute();
+              second = gps.time.second();
+              gpsTime = true;
+            }
+
+            if (gpsDate && gpsTime) {
+              if (day > 0 && day <= 31 && month <= 12 && year >= 2023) {
+                // Update RTC with GPS UTC time
+                myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
+                synced = true;
+                rtcUpdateTime = getTimestampTime();
+                rtcUpdateDate = getTimestampDate();
+                lcd.setCursor(0, 1);
+                lcd.print("[OK] (SM)");
+
+                // tft.println("[OK] Success (SM)");
+                delay(2000);
+                break;
+              }
+            }
+
+          }  // End if location
+
+        } else {
+
+          // Loose Mode: Syncs with whatever value Satellites provides
+          if (gps.date.isValid()) {
+            day = gps.date.day();
+            month = gps.date.month();
+            year = gps.date.year();
+            gpsDate = true;
+          }
+
+          if (gps.time.isValid()) {
+            hour = gps.time.hour();
+            minute = gps.time.minute();
+            second = gps.time.second();
+            gpsTime = true;
+          }
+
+
+          if (gpsDate && gpsTime) {
+            if (day > 0 && day <= 31 && month <= 12 && year >= 2023) {
+              // Update RTC with GPS UTC time
+              myRTC.setDS1302Time(second, minute, hour, 1, day, month, year);  // SS, MM, HH, DW, DD, MM, YYYY
+              synced = true;
+              rtcUpdateTime = getTimestampTime();
+              rtcUpdateDate = getTimestampDate();
+              lcd.setCursor(0, 1);
+              lcd.print("[OK] (LM)");
+              delay(2000);
+              break;
+            }
+          }
+        }  // End else
+
+
+
+      }  // end if gps.encode(ss.read())
+    }    // end if ss.available()
+
+    endTime = millis();
+  }  // end while 3 or 9 mins
+  ss.end();
+}
+
+// Checks if is the correct UTC time to initiate RTC-GPS synchronization
+bool validTimeToSync() {
+  if (isSafeMode) {
+    /*
+      Do not allow RTC-GPS sync since it may take up to 3 mins, in which the spacecraft could transmit.
+      This maximizes the opportunity to receive a signal from Satellite.
+      However, manual syncing is allowed.
+    */
+    return false;
+  } else {
+    if ((myRTC.hours == 06 || myRTC.hours == 12 || myRTC.hours == 18 || myRTC.hours == 00) && myRTC.minutes == 02 && synced == false) {  // minutes = 2
+      return true;
+    } else {
+      synced = false;
+      return false;
+    }
+  }
+}
+
+void resetMinMaxVals() {
+  minTemperature = 3000.0;
+  minHumidity = 3000.0;
+  minHeatIndex = 3000.0;
+  minPressure = 3000.0;
+  minInternalTemp = 3000.0;
+
+  maxTemperature = -3000.0;
+  maxHumidity = -3000.0;
+  maxHeatIndex = -3000.0;
+  maxPressure = -3000.0;
+  maxInternalTemp = -3000.0;
 }
 
 
