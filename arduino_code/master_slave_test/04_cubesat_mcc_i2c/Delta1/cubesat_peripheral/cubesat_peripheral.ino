@@ -424,7 +424,8 @@ void writeFile(int flag, String fileName) {
       myFile.print(date + ",");
       myFile.print(String(int(auxiliarDataLog.val1)) + ",");
       myFile.print(String(auxiliarDataLog.val2) + ",");
-      myFile.print(String(auxiliarDataLog.val3));
+      myFile.print(String(auxiliarDataLog.val3) + ",");
+      myFile.print(String(auxiliarDataLog.val4));
       myFile.print("\n");
 
       myFile.close();
