@@ -16,32 +16,31 @@
 #include "Wire.h"
 
 #ifdef __AVR__
-  #define ALR_PIN       2
+#define ALR_PIN 2
 #else
-  #define ALR_PIN       D2
+#define ALR_PIN D2
 #endif
 
-#define PRINT_INTERVAL        2000
+#define PRINT_INTERVAL 2000
 
-DFRobot_MAX17043        gauge;
-uint8_t       intFlag = 0;
+DFRobot_MAX17043 gauge;
+uint8_t intFlag = 0;
 
-void interruptCallBack()
-{
+void interruptCallBack() {
   intFlag = 1;
 }
 
-void setup()
-{
+void setup() {
   // Serial.begin(115200);
   Serial.begin(9600);
-  while(!Serial);
+  while (!Serial)
+    ;
   Serial.println();
   Serial.println();
   pinMode(ALR_PIN, INPUT_PULLUP);
   attachInterrupt(ALR_PIN, interruptCallBack, FALLING);  //default alert is 32%
-  
-  while(gauge.begin() != 0) {
+
+  while (gauge.begin() != 0) {
     Serial.println("gauge begin faild!");
     delay(2000);
   }
@@ -50,10 +49,9 @@ void setup()
   //gauge.setInterrupt(32);  //use this to modify alert threshold as 1% - 32% (integer)
 }
 
-void loop()
-{
+void loop() {
   static unsigned long lastMillis = 0;
-  if((millis() - lastMillis) > PRINT_INTERVAL) {
+  if ((millis() - lastMillis) > PRINT_INTERVAL) {
     lastMillis = millis();
     Serial.println();
 
@@ -66,7 +64,7 @@ void loop()
     Serial.println(" %");
   }
 
-  if(intFlag == 1) {
+  if (intFlag == 1) {
     intFlag = 0;
     gauge.clearInterrupt();
     Serial.println("Low power alert interrupt!");
