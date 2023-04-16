@@ -1,0 +1,2 @@
+time,date,humidity,temperature,pressure,localAltitude,pitch,roll,yaw
+00:12:05,15/04/2023,25.60,23.40,776.39,-0.23,0.03,0.80,-145.94

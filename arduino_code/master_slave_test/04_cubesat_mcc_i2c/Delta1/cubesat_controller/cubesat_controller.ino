@@ -37,7 +37,7 @@
 //
 // REVISION HISTORY:
 // 25 November 2022 - Initial Version
-// 13 April 2023 - Modification
+// 14 April 2023 - Modification
 // -- -- 2023 - Final first Version
 // TODO_dd_mmm_yyyy - TODO_describe_appropriate_changes - TODO_name
 //------------------------------------------------------------------------------
@@ -132,12 +132,13 @@ struct missionClockStruct {
 int initDay, initMonth, initYear, initHour, initMinute, initSecond;
 
 // INITIALIZATION OF SENSORS
+DFRobot_MAX17043 gauge;  // Battery gauge on I2C (SCL, SDA), address 0x36
 DHT dht(DHTPIN, DHTTYPE);     // Initialize DHT sensor for normal 16mhz Arduino
 Adafruit_BMP280 bme(BME_CS);  // hardware SPI for BMP280
 MPU9250 IMU(Wire, 0x68);      //MPU-9250 sensor on I2C bus 0 with address 0x68
 OneWire ourWire(2);           // DSB18B20 on Pin 2
 DallasTemperature sensors(&ourWire);
-DFRobot_MAX17043 gauge;  // Battery gauge on I2C (SCL, SDA), address 0x36
+
 
 void setup() {
   Serial.begin(9600);
@@ -169,11 +170,11 @@ void setup() {
     while (1) {}
   }
 
-  gauge.begin();
-  // while (gauge.begin() != 0) {
-  //   Serial.println("E3"); // E3: gauge begin faild!
-  //   // delay(2000);
-  // }
+  // gauge.begin();
+  while (gauge.begin() != 0) {
+    Serial.println("E3"); // E3: gauge begin failed!
+    // delay(2000);
+  }
 
   resetPressureGroundLevel();  // Read ground level pressure when initiating board
 
@@ -738,7 +739,7 @@ void sendDataI2C(int type) {
     case 5:  // Send system data as SUDO (ESM)
       auxiliarData.header = 5;
       auxiliarData.val1 = systemData.mode;  // SUDO save system data: Don't check validTime on SAT_B
-      auxiliarData.val2 = systemData.voltage;
+      auxiliarData.val2 = systemData.voltage; // Sometimes this val is not getting recorded on SD card.
       auxiliarData.val3 = systemData.internalTemp;
       auxiliarData.val4 = systemData.batteryTemp;
       auxiliarData.val5 = systemData.batteryPercentage;
@@ -950,10 +951,10 @@ void checkTriggerSM(int lastMode) {
   */
 
   digitalWrite(FIVE_VOLT_PIN, HIGH);  // Always setting pin to HIGH (turn ON)
-  delay(200);
-  systemData.voltage = gauge.readVoltage();  // getBatteryVoltage();
+  delay(200);  
   systemData.internalTemp = getInternalTemperature();
   systemData.batteryTemp = getBatteryTemperature();
+  systemData.voltage = gauge.readVoltage();  // getBatteryVoltage();
   systemData.batteryPercentage = gauge.readPercentage();
 
   // systemData.internalTemp = 25.0;

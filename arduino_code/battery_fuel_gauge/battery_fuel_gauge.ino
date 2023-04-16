@@ -59,7 +59,7 @@ void loop() {
     Serial.print(gauge.readVoltage());
     Serial.println(" mV");
 
-    Serial.print("precentage: ");
+    Serial.print("percentage: ");
     Serial.print(gauge.readPercentage());
     Serial.println(" %");
   }

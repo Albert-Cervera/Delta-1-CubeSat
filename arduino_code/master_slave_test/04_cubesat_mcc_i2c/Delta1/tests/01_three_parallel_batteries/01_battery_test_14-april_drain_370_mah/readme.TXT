@@ -43,16 +43,16 @@ Also, when doing the charging testing, it went from 40% to 100% fast.
 
 
 11:33:49.263 -> voltage: 3808.75 mV
-11:33:49.296 -> precentage: 40.82 %
+11:33:49.296 -> percentage: 40.82 %
 
 12:55:05.356 -> voltage: 4190.00 mV
-12:55:05.388 -> precentage: 95.13 %
+12:55:05.388 -> percentage: 95.13 %
 
 13:42:51.450 -> voltage: 4196.25 mV
-13:42:51.483 -> precentage: 100.03 %
+13:42:51.483 -> percentage: 100.03 %
 
 19:01:45.040 -> voltage: 4200.00 mV
-19:01:45.072 -> precentage: 101.77 %
+19:01:45.072 -> percentage: 101.77 %
 
 Charge test note: Using the SPM connected to my old Samsung brick charger (probably 5V and 1A, nothing fancy or fast charging). I left it connected even after the 100% charge to see how it handled the charge.
 

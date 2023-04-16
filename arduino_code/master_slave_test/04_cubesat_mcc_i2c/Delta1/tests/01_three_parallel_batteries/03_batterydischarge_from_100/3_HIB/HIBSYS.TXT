@@ -1,0 +1,1 @@
+time,date,mode,voltage,internalTemp,batteryTemp,batteryCharge
