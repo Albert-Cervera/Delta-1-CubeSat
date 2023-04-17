@@ -709,7 +709,7 @@ void sendDataI2C(int type) {
     case 2:  // Send RTWI system data
       auxiliarData.header = 2;
       auxiliarData.val1 = systemData.mode;  // mode is an integer, see if no conflict arises with float of struct
-      auxiliarData.val2 = systemData.voltage;
+      auxiliarData.val2 = gauge.readVoltage(); // systemData.voltage;
       auxiliarData.val3 = systemData.internalTemp;
       auxiliarData.val4 = systemData.batteryTemp;
       auxiliarData.val5 = systemData.batteryPercentage;
@@ -719,7 +719,7 @@ void sendDataI2C(int type) {
     case 3:  // Safe mode: Send system data as SUDO
       auxiliarData.header = 3;
       auxiliarData.val1 = systemData.mode;  // SUDO save system data: Don't check validTime on SAT_B
-      auxiliarData.val2 = systemData.voltage;
+      auxiliarData.val2 = gauge.readVoltage(); // systemData.voltage;
       auxiliarData.val3 = systemData.internalTemp;
       auxiliarData.val4 = systemData.batteryTemp;
       auxiliarData.val5 = systemData.batteryPercentage;
@@ -739,7 +739,7 @@ void sendDataI2C(int type) {
     case 5:  // Send system data as SUDO (ESM)
       auxiliarData.header = 5;
       auxiliarData.val1 = systemData.mode;  // SUDO save system data: Don't check validTime on SAT_B
-      auxiliarData.val2 = systemData.voltage; // Sometimes this val is not getting recorded on SD card.
+      auxiliarData.val2 = gauge.readVoltage(); // systemData.voltage; // Sometimes this val is not getting recorded on SD card.
       auxiliarData.val3 = systemData.internalTemp;
       auxiliarData.val4 = systemData.batteryTemp;
       auxiliarData.val5 = systemData.batteryPercentage;
@@ -779,7 +779,7 @@ void sendDataI2C(int type) {
     case 9:  // Send system data as SUDO (HIB)
       auxiliarData.header = 10;
       auxiliarData.val1 = systemData.mode;
-      auxiliarData.val2 = systemData.voltage;
+      auxiliarData.val2 = gauge.readVoltage();// systemData.voltage;
       auxiliarData.val3 = systemData.internalTemp;
       auxiliarData.val4 = systemData.batteryTemp;
       auxiliarData.val5 = systemData.batteryPercentage;
