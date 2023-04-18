@@ -201,12 +201,20 @@ int lastSatelliteMode;  // To determine if it was in SM before
 // uint8_t launchSecond = 0;
 
 // Voyager:
-uint8_t launchDay = 5;      // 5
-uint8_t launchMonth = 9;    // 9
-int launchYear = 1977;      // 1977
-uint8_t launchHour = 12;    // 12 original
-uint8_t launchMinute = 56;  // 56 original
-uint8_t launchSecond = 0;   // 0 original
+// uint8_t launchDay = 5;      // 5
+// uint8_t launchMonth = 9;    // 9
+// int launchYear = 1977;      // 1977
+// uint8_t launchHour = 12;    // 12 original
+// uint8_t launchMinute = 56;  // 56 original
+// uint8_t launchSecond = 0;   // 0 original
+
+// Delta-1 First concept built day:
+uint8_t launchDay = 16;
+uint8_t launchMonth = 9;
+int launchYear = 2022;
+uint8_t launchHour = 17;
+uint8_t launchMinute = 42;
+uint8_t launchSecond = 0;
 
 
 // 28 bytes size and 7 elements (4 bytes each(?))
@@ -694,7 +702,7 @@ void loop() {
         clearMessage();
       }
       if (page == 3) {
-        graphAction(6);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
+        graphAction(6);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage, 8: battery percentage, 9: battery temperature
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
@@ -760,7 +768,7 @@ void loop() {
         clearMessage();
       }
       if (page == 3) {
-        graphAction(5);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
+        graphAction(5);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage, 8: battery percentage, 9: battery temperature
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
@@ -825,7 +833,7 @@ void loop() {
         clearMessage();
       }
       if (page == 3) {
-        graphAction(7);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
+        graphAction(7);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage, 8: battery percentage, 9: battery temperature
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
@@ -887,12 +895,12 @@ void loop() {
         clearMessage();
       }
       if (page == 3) {
-        m3b4action();
+        graphAction(8);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage, 8: battery percentage, 9: battery temperature
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
         tft.setTextSize(2);
-        tft.println("Menu 3 B4");
+        tft.println("Plotting ...");
         yled(550);
         clearMessage();
       }
@@ -936,7 +944,7 @@ void loop() {
       //   clearMessage();
       // }
       if (page == 44) {
-        graphAction(4);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
+        graphAction(4);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage, 8: battery percentage, 9: battery temperature
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
@@ -946,7 +954,7 @@ void loop() {
         clearMessage();
       }
       if (page == 43) {
-        graphAction(1);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
+        graphAction(1);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage, 8: battery percentage, 9: battery temperature
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
@@ -956,7 +964,7 @@ void loop() {
         clearMessage();
       }
       if (page == 41) {
-        graphAction(2);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
+        graphAction(2);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage, 8: battery percentage, 9: battery temperature
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
@@ -975,17 +983,17 @@ void loop() {
         yled(550);
         clearMessage();
       }
-
-      // No button or action there
-      // if (page == 3) {
-      //   m3b5action();
-      //   tft.setCursor(12, 213);
-      //   tft.setTextColor(RED);
-      //   tft.setTextSize(2);
-      //   tft.println("Menu 3 B5");
-      //   yled(550);
-      //   clearMessage();
-      // }
+      
+      if (page == 3) {
+        graphAction(9);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage, 8: battery percentage, 9: battery temperature
+        clearMessage();
+        tft.setCursor(12, 213);
+        tft.setTextColor(RED);
+        tft.setTextSize(2);
+        tft.println("Plotting ...");
+        yled(550);
+        clearMessage();
+      }
       if (page == 2) {
         m2b5action();
         clearMessage();
@@ -1030,7 +1038,7 @@ void loop() {
       //   clearMessage();
       // }
       if (page == 41) {
-        graphAction(3);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
+        graphAction(3);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage, 8: battery percentage, 9: battery temperature
         clearMessage();
         tft.setCursor(12, 213);
         tft.setTextColor(RED);
@@ -1049,17 +1057,18 @@ void loop() {
         tft.println("Summary");
         yled(550);
         clearMessage();
+      }      
+      if (page == 3) {
+        m3b6action();
+        // clearCenter();
+        clearMessage();
+        tft.setCursor(12, 213);
+        tft.setTextColor(RED);
+        tft.setTextSize(2);
+        tft.println("Summary");
+        yled(550);
+        clearMessage();
       }
-      // No button or action there
-      // if (page == 3) {
-      //   m3b6action();
-      //   tft.setCursor(12, 213);
-      //   tft.setTextColor(RED);
-      //   tft.setTextSize(2);
-      //   tft.println("Menu 3 B6");
-      //   yled(550);
-      //   clearMessage();
-      // }
       // No buttons or action there
       // if (page == 2) {
       //   m2b6action();
@@ -1176,6 +1185,9 @@ void loop() {
         break;
       case 46:
         m4b6action();
+        break;
+      case 36:
+        m3b6action();
         break;
       case 11:
         m1b1action();
@@ -2312,7 +2324,7 @@ void menu2() {
 }
 
 void menu3() {
-  boxes(3);
+  boxes(6);
 
   clearMessageStatusBar(isSafeMode);
   tft.setCursor(1, 1);
@@ -2328,7 +2340,7 @@ void menu3() {
   tft.setCursor(22, 37);
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
-  // tft.println("Menu 3 B1");
+  
   tft.println("SC Mode");
 
   tft.setCursor(192, 37);
@@ -2341,20 +2353,20 @@ void menu3() {
   tft.setTextSize(2);
   tft.println("Voltage");
 
-  // tft.setCursor(192, 97);
-  // tft.setTextColor(WHITE);
-  // tft.setTextSize(2);
-  // tft.println("Temp Graph");
+  tft.setCursor(192, 97);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Battery");
 
-  // tft.setCursor(22, 157);
-  // tft.setTextColor(WHITE);
-  // tft.setTextSize(2);
-  // tft.println("Menu 3 B5");
+  tft.setCursor(22, 157);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Batt Temp");
 
-  // tft.setCursor(192, 157);
-  // tft.setTextColor(WHITE);
-  // tft.setTextSize(2);
-  // tft.println("Menu 3 B6");
+  tft.setCursor(192, 157);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Summary");
 }
 
 void menu4() {
@@ -3183,6 +3195,41 @@ void m3b5action() {
 }
 
 void m3b6action() {
+  lastPage = 36;
+  clearCenter();
+  enableArea = false;  
+
+  tft.setCursor(22, 27);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Internal Temp: " + String(systemData.internalTemp) + "\367" + "C");
+
+  tft.setCursor(22, 47);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Battery Temp: " + String(systemData.batteryTemp) + "\367" + "C");
+
+  tft.setCursor(22, 67);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Charge Status: " + String(systemData.batteryPercentage) + "%");
+
+  tft.setCursor(22, 87);
+  tft.setTextColor(WHITE);
+  tft.setTextSize(2);
+  tft.println("Batt Voltage: " + String(systemData.voltage) + " mV");
+
+  tft.setCursor(22, 157);  // 22, 157
+  tft.setTextColor(YELLOW);
+  tft.setTextSize(1);
+  tft.println("Last transmission rcvd:");
+
+  tft.setCursor(22, 177);
+  tft.setTextColor(MARS);
+  tft.setTextSize(1);
+  tft.println(rcvdTime + " UTC");
+
+  
 }
 
 void m4b1action() {
@@ -3235,7 +3282,7 @@ void graphAction(int type) {
   clearCenter();
   enableArea = false;
 
-  plotGraph(type);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
+  plotGraph(type);  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage, 8: battery percentage, 9: battery temperature
 }
 
 void m4b4action() {
@@ -3781,7 +3828,7 @@ void drawClock(String time) {
 }
 
 void plotGraph(int type) {
-  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage
+  // 1:barometer, 2: temperature, 3: humidity, 4: localAltitude, 5: internalTemp, 6: mode, 7: voltage, 8: battery percentage, 9: battery temperature
   // true: ESM, false:RTWI
 
   /*
@@ -3859,6 +3906,12 @@ void plotGraph(int type) {
       break;
     case 7:
       tft.println("Spacecraft voltage");
+      break;
+    case 8:
+      tft.println("Spacecraft battery");
+      break;
+    case 9:
+      tft.println("Spacecraft battery temperature");
       break;
   }
 
@@ -4012,7 +4065,7 @@ void plotData(int dataPoints[], int minVal, int maxVal) {
 }
 
 void readData(int type) {
-  Serial.print("\nreadData with type: " + String(type));
+  // Serial.print("\nreadData with type: " + String(type));
 
   /* 
     Function that reads a txt file with CSV 
@@ -4043,7 +4096,7 @@ void readData(int type) {
   myFile = SD.open(filePath);
 
   if (myFile) {
-    Serial.println("\nReading " + filePath + ": ");
+    // Serial.println("\nReading " + filePath + ": ");
 
     // Rewind the file for read.
     // Seeks to a new position in the file, between 0 and size of file (inclusive)
@@ -4072,7 +4125,7 @@ void readData(int type) {
     // Serial.println("\ndesiredPosition: " + String(desiredPosition));
 
     // HTEL txt: time,date,humidity,temperature,pressure,localAltitude,pitch,roll,yaw
-    // HSYS txt: time,date,mode,voltage,internalTemp
+    // HSYS txt: time,date,mode,voltage,internalTemp,batteryTemp,batteryCharge
     int stringPos;
     switch (type) {
       case 1:
@@ -4096,6 +4149,12 @@ void readData(int type) {
       case 7:
         stringPos = 3;  // voltage
         break;
+      case 8:
+        stringPos = 6;  // battery percentage
+        break; 
+      case 9:
+        stringPos = 5;  // battery temperature
+        break;    
     }
 
     Serial.print("\nstringPos: " + String(stringPos));
@@ -4113,14 +4172,14 @@ void readData(int type) {
       // Serial.println(buffer);
 
       String dataValue = getValue(buffer, ',', stringPos);
-      Serial.print("\n-----------------\n");
-      Serial.println(dataValue);
+      // Serial.print("\n-----------------\n");
+      // Serial.println(dataValue);
       int val = round(dataValue.toFloat());
-      Serial.println(val);
+      // Serial.println(val);
 
       dataPoints[counter] = val;
       counter++;
-      Serial.print("\ncounter: " + String(counter));
+      // Serial.print("\ncounter: " + String(counter));
 
       // Now I need to get the min and Max vals from an array
       if (val != 0 && val < minVal) {
@@ -4134,12 +4193,12 @@ void readData(int type) {
       }
 
     }  // end of while
-    Serial.print("\nClosing file ...");
+    // Serial.print("\nClosing file ...");
     myFile.close();  // close the file
-    Serial.print("\nCalling plotData ...");
+    // Serial.print("\nCalling plotData ...");
 
-    Serial.print("\nminVal: " + String(minVal));
-    Serial.print("\nmaxVal: " + String(maxVal));
+    // Serial.print("\nminVal: " + String(minVal));
+    // Serial.print("\nmaxVal: " + String(maxVal));
     // Serial.print("\nsizeof(dataPoints): " + String(sizeof(dataPoints)));
 
     plotData(dataPoints, minVal, maxVal);  // <-- Plotting actual data points
