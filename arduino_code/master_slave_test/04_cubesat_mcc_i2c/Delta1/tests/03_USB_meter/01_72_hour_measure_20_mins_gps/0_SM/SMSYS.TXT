@@ -1,0 +1,2 @@
+time,date,mode,voltage,internalTemp,batteryTemp,batteryCharge
+16:22:44,18/04/2023,0,3781.25,21.75,21.94,1.23
