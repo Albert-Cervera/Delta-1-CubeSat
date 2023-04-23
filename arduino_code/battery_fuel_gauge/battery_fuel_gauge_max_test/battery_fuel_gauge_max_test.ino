@@ -1,18 +1,23 @@
-#include "Arduino.h"
+// #include "Arduino.h"
 #include "MAX17043.h"
 
 void setup() {
   Serial.begin(9600);
-  Wire.begin(4,0); // What are these numbers?
   FuelGauge.begin();
 }
 
-void loop(){
+void loop() {
   float percentage = FuelGauge.percent();
-  float voltage = FuelGauge.voltage(); // mV '/1000' to have V
+  float voltage = FuelGauge.voltage();
 
-  Serial.print("Battery percentage: " + String(percentage) + " %");
-  Serial.print("Battery voltage: " + String(voltage) + " mV");
+  Serial.print("\n----------------------");
+  Serial.print("\nBattery percentage: ");
+  Serial.print(percentage);
+  Serial.println("%");
 
-  delay (1000);
+  Serial.print("Battery voltage: ");
+  Serial.print(voltage);
+  Serial.println(" mV");
+
+  delay(2000);
 }

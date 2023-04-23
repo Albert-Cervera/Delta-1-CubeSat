@@ -951,7 +951,7 @@ void checkTriggerSM(int lastMode) {
   */
 
   digitalWrite(FIVE_VOLT_PIN, HIGH);  // Always setting pin to HIGH (turn ON)
-  delay(200);  
+  delay(150);  // 200
   systemData.internalTemp = getInternalTemperature();
   systemData.batteryTemp = getBatteryTemperature();
   systemData.voltage = gauge.readVoltage();  // getBatteryVoltage();
@@ -1027,8 +1027,12 @@ void checkTriggerSM(int lastMode) {
     a temperature from  0°C to 45°C should disconnect the solar arrays, it
     should not trigger a SM. Safe Mode might be triggered between –20°C to 60°C
 
+    Battery percentage trigger was at 10%, but experiments showed that spacecraft ran in SM with just 0.0% for 6 hours and 38 mins!
+
+    Note: 10% to first 0.0% took 7 hours, 28 mins before running the other almost 7 hours.
+
   */
-  if (systemData.internalTemp <= -25.0 || systemData.internalTemp >= 85.0 || systemData.batteryTemp <= 0.0 || systemData.batteryTemp >= 40.0 || systemData.batteryPercentage <= 10.0) {
+  if (systemData.internalTemp <= -25.0 || systemData.internalTemp >= 85.0 || systemData.batteryTemp <= 0.0 || systemData.batteryTemp >= 40.0 || systemData.batteryPercentage <= 0.0) {
     spacecraftMode = 0;
   } else {
     spacecraftMode = lastMode; // Consider sending it to ESM instead

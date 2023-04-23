@@ -144,6 +144,8 @@ float maxBatteryTemp = -3000.0;
 float maxBatteryPercentage = -3000.0;
 float maxVoltage = -10000;
 
+int lastMode;
+
 
 struct commandStruct {
   float op;
@@ -358,14 +360,21 @@ void loop() {
       maxVoltage = systemData.voltage;
     }
 
+    
 
     if (systemData.mode == 0) {
-      // Safe mode detected
+      // Safe mode detected      
       isSafeMode = true;
       // Maybe add some HTML var that if SM is detected, is printed loudy.
+      // Somehow call resetMinMaxVals(); when passing from SM to other mode
     } else {
-      isSafeMode = false;
+      if (lastMode == 0 && systemData.mode > 0) {
+        resetMinMaxVals();
+        isSafeMode = false;
+      }      
     }
+    
+    lastMode = systemData.mode; 
 
 
     // sendDataI2C(); // Send telemetryData via I2C to peripheral slave
@@ -487,6 +496,8 @@ void webServer() {
 
           /*
 
+
+
             <style>
             body {
               background-image: url('https://www.pikpng.com/pngl/b/87-879496_nasa-logo-clipart.png');
@@ -499,7 +510,9 @@ void webServer() {
 
             https://scitechdaily.com/images/Curiosity-Selfie-Hutton-Drill-Site-Crop-scaled.jpg
 
-            https://wallup.net/wp-content/uploads/2016/01/192171-landscape-sunrise-Mars.jpg
+            https://wallup.net/wp-content/uploads/2016/01/192171-landscape-sunrise-Mars.jpg  <-- good one
+
+            https://mars.nasa.gov/system/resources/detail_files/3811_PIA15115_sols2811-14_L456atc-full2.jpg
 
           */
 
@@ -1306,6 +1319,8 @@ void resetMinMaxVals() {
   minPressure = 3000.0;
   minInternalTemp = 3000.0;
   minBatteryTemp = 3000.0;
+  minBatteryPercentage = 3000.0;
+  minVoltage = 10000.0;
   
   maxTemperature = -3000.0;
   maxHumidity = -3000.0;
@@ -1313,6 +1328,9 @@ void resetMinMaxVals() {
   maxPressure = -3000.0;
   maxInternalTemp = -3000.0;
   maxBatteryTemp = -3000.0;
+  maxBatteryPercentage = -3000.0;
+  maxVoltage = -10000;
+  
 }
 
 
