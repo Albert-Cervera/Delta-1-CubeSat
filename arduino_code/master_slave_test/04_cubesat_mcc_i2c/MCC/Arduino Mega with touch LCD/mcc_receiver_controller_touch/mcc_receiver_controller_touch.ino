@@ -156,7 +156,8 @@ bool enableArea = true;
 File myFile;
 char delim = ';';
 String buffer;  // For reading file line by line
-String latitude, longitude, altitude;
+// String latitude, longitude, altitude; // Original
+double latitude, longitude, altitude;
 
 // Create Amplitude Shift Keying Object
 // Params: speed in BPS, rxPin, txPin, pttPin
@@ -2930,17 +2931,18 @@ void settingsb12action() {
   tft.setCursor(22, 37);
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
-  tft.println("Latitude: " + latitude + "\367");
+  tft.println("Latitude: " + String(latitude,6) + "\367");
+  
 
   tft.setCursor(22, 77);
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
-  tft.println("Longitude: " + longitude + "\367");
+  tft.println("Longitude: " + String(longitude,6) + "\367");
 
   tft.setCursor(22, 117);
   tft.setTextColor(WHITE);
   tft.setTextSize(2);
-  tft.println("Altitude: " + altitude + " m");
+  tft.println("Altitude: " + String(altitude,2) + " m");
 }
 
 void m1b3action() {

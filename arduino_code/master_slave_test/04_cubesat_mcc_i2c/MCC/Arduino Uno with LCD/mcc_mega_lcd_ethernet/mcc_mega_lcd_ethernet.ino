@@ -389,7 +389,7 @@ void loop() {
     currentMillis = millis();
     // If in 10 mins, 30 secs no data is received, display message
     if (currentMillis - lastDataReceived >= losTolerance) {
-      Serial.print("\nNo data\n");
+      // Serial.print("\nNo data\n");
       lcd.clear();
       lcd.setCursor(0, 0);
       lcd.print("[!!!] No data");
@@ -489,7 +489,7 @@ void webServer() {
           // client.println("<body style='background-color:powderblue;'>");
           client.println("<body style='background-color:black;'>");
 
-          client.println("<img src='https://www.linkpicture.com/q/delta-v-final_logo_Mesa-de-trabajo-1-copy.png' alt='Delta-V logo' style='width:330px;height:330px;' > ");
+          client.println("<img src='https://i.ibb.co/LRvPnGZ/delta-v-final-logo-Mesa-de-trabajo-1.png' alt='Delta-V logo' style='width:330px;height:330px;' > ");
 
           // Background image:
           client.println("<style>             body {               background-image: url('https://wallup.net/wp-content/uploads/2016/01/192171-landscape-sunrise-Mars.jpg'); background-repeat: no-repeat;background-attachment: fixed;background-size: cover;} </style>");
@@ -521,7 +521,7 @@ void webServer() {
             https://www.w3schools.com/images/w3schools_green.jpg
 
             Delta-V logo:    
-            https://www.linkpicture.com/q/delta-v-final_logo_Mesa-de-trabajo-1-copy.png
+           https://i.ibb.co/LRvPnGZ/delta-v-final-logo-Mesa-de-trabajo-1.png
           */
 
           // client.println("<H1>MCC || Delta-1</H1>");
@@ -647,7 +647,7 @@ void webServer() {
           // client.println("<br />");
           client.println("<p style='color:white;'>  Albert A. Cervera-Uribe, 2023</p>");
 
-          client.println("<img src='https://www.nasa.gov/sites/default/files/thumbnails/image/nasa-logo-web-rgb.png' alt='NASA' style='width:330px;height:165px;' > ");
+          client.println("<img src='https://gpm.nasa.gov/sites/default/files/document_files/NASA-Logo-Large.png' alt='NASA' style='width:330px;height:270px;' > ");
 
 
           client.println("<p><a href='https://twitter.com/astra_delta_v' target='_blank'>Twitter: @astra_delta_v</a></p>");
